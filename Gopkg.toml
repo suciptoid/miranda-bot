@@ -34,3 +34,7 @@
 [[constraint]]
   name = "gopkg.in/telegram-bot-api.v4"
   version = "4.6.2"
+
+[[constraint]]
+  name = "github.com/joho/godotenv"
+  version = "1.2.0"

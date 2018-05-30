@@ -2,6 +2,12 @@
 
 
 [[projects]]
+  name = "github.com/joho/godotenv"
+  packages = ["."]
+  revision = "a79fa1e548e2c689c241d10173efd51e5d689d5b"
+  version = "v1.2.0"
+
+[[projects]]
   name = "github.com/technoweenie/multipartstreamer"
   packages = ["."]
   revision = "a90a01d73ae432e2611d178c18367fbaa13e0154"
@@ -16,6 +22,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "9d209a08a3d64549a5aa27c4617b5a4b146d6725d58488697e69bacf4981c6aa"
+  inputs-digest = "d9a3ff18d6cc1afc3933cf34d4fb79b6886736b752a0a0bd0ce8abbaecefb8e4"
   solver-name = "gps-cdcl"
   solver-version = 1
