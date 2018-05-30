@@ -24,5 +24,7 @@ func (c Command) Handle(cs string) {
 		c.Ping()
 	case "report":
 		c.Report()
+	case "rules":
+		c.Rules()
 	}
 }
