@@ -25,8 +25,10 @@ func main() {
 	// Load Configuration
 	err := godotenv.Load()
 	if err != nil {
-		log.Fatal("Error loading .env file")
+		log.Println("No .env file, reading from system env")
+		// panic(err)
 	}
+
 	configuration := Configuration{
 		Port:       os.Getenv("PORT"),
 		UpdateMode: os.Getenv("UPDATE_MODE"),
