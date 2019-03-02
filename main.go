@@ -7,8 +7,9 @@ import (
 	"os"
 	"strings"
 
+	"miranda-bot/commands"
+
 	"github.com/joho/godotenv"
-	"github.com/showcheap/miranda-bot/commands"
 
 	tg "gopkg.in/telegram-bot-api.v4"
 )
@@ -47,7 +48,7 @@ func main() {
 
 	// Using Long Pooling
 	if configuration.UpdateMode == "1" {
-		log.Println("Set mode pooling")
+		log.Println("Set mode pooling & remove webhook")
 
 		// Remove webhook if exist
 		_, err := bot.RemoveWebhook()
@@ -100,17 +101,24 @@ func main() {
 func handleUpdates(bot *tg.BotAPI, updates tg.UpdatesChannel) {
 
 	for update := range updates {
-		if update.Message == nil {
-			continue
-		}
-
-		log.Printf("[%s:%s] %s", update.Message.From.UserName, update.Message.Chat.Title, update.Message.Text)
-
 		// DEBUG INCOMING MESSAGE
 		// data, _ := json.Marshal(update)
 		// message := bytes.NewBufferString(string(data))
 
 		// log.Println(message)
+
+		if update.CallbackQuery != nil {
+			// TODO: Handle Callback
+			bot.AnswerCallbackQuery(tg.NewCallback(update.CallbackQuery.ID, update.CallbackQuery.Data))
+
+			bot.Send(tg.NewMessage(update.CallbackQuery.Message.Chat.ID, update.CallbackQuery.Data))
+
+			continue
+		} else if update.Message == nil {
+			continue
+		}
+
+		log.Printf("[%s:%s] %s", update.Message.From.UserName, update.Message.Chat.Title, update.Message.Text)
 
 		switch {
 		// New Member Join
