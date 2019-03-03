@@ -73,8 +73,10 @@ func (cb *Callback) Report() {
 	switch datas[2] {
 	case "up":
 		voteValue = 1
+		voteState = "👍"
 	case "down":
 		voteValue = 0
+		voteState = "👎"
 	}
 
 	var ur models.UserReport
@@ -92,11 +94,11 @@ func (cb *Callback) Report() {
 		switch datas[2] {
 		case "up":
 			report.VoteUp = report.VoteUp + votingPoint
-			voteState = "👍"
 		case "down":
 			report.VoteDown = report.VoteDown + votingPoint
-			voteState = "👎"
 		}
+
+		cb.Bot.AnswerCallbackQuery(tg.NewCallback(cq.ID, fmt.Sprintf("Kamu telah memberikan %s untuk pooling ini", voteState)))
 
 	} else {
 		// TODO: Update Vote if changed
@@ -104,13 +106,30 @@ func (cb *Callback) Report() {
 		switch ur.Vote {
 		case 1:
 			existingVote = "👍"
+			if voteValue == 0 {
+				report.VoteUp = report.VoteUp - votingPoint
+				report.VoteDown = report.VoteDown + votingPoint
+			}
 		case 0:
 			existingVote = "👎"
+			if voteValue == 1 {
+				report.VoteDown = report.VoteDown - votingPoint
+				report.VoteUp = report.VoteUp + votingPoint
+			}
 		}
 
-		cb.Bot.AnswerCallbackQuery(tg.NewCallback(cq.ID, fmt.Sprintf("Kamu sudah memberikan %s untuk pooling ini", existingVote)))
-		tx.Rollback()
-		return
+		// Change Vote Count
+		if ur.Vote != voteValue {
+			cb.Bot.AnswerCallbackQuery(tg.NewCallback(cq.ID, fmt.Sprintf("Kamu merubah vote dari %s menjadi %s untuk pooling ini", existingVote, voteState)))
+		} else {
+			cb.Bot.AnswerCallbackQuery(tg.NewCallback(cq.ID, fmt.Sprintf("Kamu sudah memberi vote %s untuk pooling ini", existingVote)))
+		}
+
+		// Update existing vote
+		ur.Vote = voteValue
+		tx.Save(&ur)
+
+		// return
 	}
 
 	tx.Save(&report)
@@ -134,8 +153,6 @@ func (cb *Callback) Report() {
 		cq.Message.MessageID,
 		keyboard,
 	)
-
-	cb.Bot.AnswerCallbackQuery(tg.NewCallback(cq.ID, fmt.Sprintf("Kamu telah memberikan %s untuk pooling ini", voteState)))
 
 	cb.Bot.Send(edit)
 

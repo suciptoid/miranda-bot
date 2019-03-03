@@ -9,7 +9,7 @@ import (
 
 // Ping send pong
 func (c Command) Ping() {
-	msg := tg.NewMessage(c.Message.Chat.ID, "Pong pong ✨")
+	msg := tg.NewMessage(c.Message.Chat.ID, "Pong ✨")
 	msg.ParseMode = "markdown"
 
 	r, err := c.Bot.Send(msg)
