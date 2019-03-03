@@ -165,18 +165,49 @@ func (app *App) handleUpdates(updates tg.UpdatesChannel) {
 		// New Member Join
 		case update.Message.NewChatMembers != nil:
 			//TODO: Handle welcome message
-			log.Println("New Chat Members")
+			// log.Println("New Chat Members")
 
 			members := update.Message.NewChatMembers
-			firstMember := (*members)[0]
+			// firstMember := (*members)[0]
 
-			text := fmt.Sprintf("Selamat datang *%s* 😊", firstMember.FirstName)
-			msg := tg.NewMessage(update.Message.Chat.ID, text)
-			msg.ParseMode = "markdown"
+			// var member tg.User
+			for _, member := range *members {
 
-			log.Println("New chat members", firstMember.FirstName)
+				if member.UserName == "miranda_bukanbot" && update.Message.Chat.ID != -1001289597394 {
+					// Left Chat on unregistered group
+					_, err := bot.LeaveChat(tg.ChatConfig{
+						ChatID: update.Message.Chat.ID,
+					})
 
-			bot.Send(msg)
+					log.Printf("[leavechat] Leave chat from unauthorized group %v", update.Message.Chat.ID)
+					if err != nil {
+						log.Printf("[leavechat] Error Leave chat from unauthorized group %v", update.Message.Chat.ID)
+					}
+				} else if member.IsBot && member.UserName != "miranda_bukanbot" {
+					// Kick other bot
+					_, err := bot.KickChatMember(tg.KickChatMemberConfig{
+						ChatMemberConfig: tg.ChatMemberConfig{
+							ChatID: update.Message.Chat.ID,
+							UserID: member.ID,
+						},
+					})
+					log.Printf("[kickbot] Kick bot @%s", member.UserName)
+					if err != nil {
+						log.Printf("[kickbot] Error kick bot @%s", member.UserName)
+					}
+				} else {
+					// Send welcome message except itself
+					if member.UserName != "miranda_bukanbot" {
+						text := fmt.Sprintf("Selamat datang *%s* 😊", member.FirstName)
+						msg := tg.NewMessage(update.Message.Chat.ID, text)
+						msg.ParseMode = "markdown"
+
+						log.Println("New chat members", member.FirstName)
+
+						bot.Send(msg)
+					}
+				}
+			}
 
 		case update.Message.Text != "":
 			// Filter Group command
