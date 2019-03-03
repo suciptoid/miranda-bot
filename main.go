@@ -66,7 +66,7 @@ func main() {
 	defer db.Close()
 
 	log.Println("Connected to DB")
-	db.AutoMigrate(&models.User{}, &models.Report{})
+	db.AutoMigrate(&models.User{}, &models.Report{}, &models.UserReport{})
 
 	app := App{
 		DB:     db,

@@ -73,9 +73,16 @@ func (c Command) Report() {
 		ma.ReplyToMessageID = c.Message.ReplyToMessage.MessageID
 		ma.ParseMode = "markdown"
 		ma.ReplyMarkup = keyboard
+
 		_, err := c.Bot.Send(ma)
 		if err != nil {
 			log.Println("Error send message", err)
+		}
+
+		// Delete !report command
+		dr := tg.NewDeleteMessage(c.Message.Chat.ID, c.Message.MessageID)
+		if _, err := c.Bot.Send(dr); err != nil {
+			log.Println("[report] Error delete report message")
 		}
 
 	} else {

@@ -42,6 +42,18 @@ func (cb *Callback) Report() {
 		log.Printf("[Vote Report] User voter (%s) already exists with point: %v", voter.Name, voter.Point)
 	}
 
+	// Voting Points / Reputation
+	var votingPoint = 1
+
+	// Admin & Mod has instant delete privileges
+	if voter.RoleID != 3 {
+		votingPoint = 3
+	} else if voter.Point >= 100 {
+		votingPoint = 3
+	} else if voter.Point >= 50 {
+		votingPoint = 2
+	}
+
 	tx := cb.DB.Begin()
 
 	// Search Report
@@ -54,14 +66,51 @@ func (cb *Callback) Report() {
 		return
 	}
 
+	// Check Existing Vote for curent voter
+	var voteValue int
 	var voteState string
+
 	switch datas[2] {
 	case "up":
-		report.VoteUp = report.VoteUp + 1
-		voteState = "👍"
+		voteValue = 1
 	case "down":
-		report.VoteDown = report.VoteDown + 1
-		voteState = "👎"
+		voteValue = 0
+	}
+
+	var ur models.UserReport
+	if tx.Where("user_id = ? and report_id = ?", voter.ID, report.ID).First(&ur).RecordNotFound() {
+
+		// Save Vote Record
+		report.UserReports = []*models.UserReport{
+			{
+				User: &voter,
+				Vote: voteValue,
+			},
+		}
+
+		// Update Vote Count
+		switch datas[2] {
+		case "up":
+			report.VoteUp = report.VoteUp + votingPoint
+			voteState = "👍"
+		case "down":
+			report.VoteDown = report.VoteDown + votingPoint
+			voteState = "👎"
+		}
+
+	} else {
+		// TODO: Update Vote if changed
+		var existingVote string
+		switch ur.Vote {
+		case 1:
+			existingVote = "👍"
+		case 0:
+			existingVote = "👎"
+		}
+
+		cb.Bot.AnswerCallbackQuery(tg.NewCallback(cq.ID, fmt.Sprintf("Kamu sudah memberikan %s untuk pooling ini", existingVote)))
+		tx.Rollback()
+		return
 	}
 
 	tx.Save(&report)
