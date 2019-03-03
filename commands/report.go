@@ -30,7 +30,7 @@ func (c Command) Report() {
 
 			c.DB.Create(&reporter)
 		} else {
-			log.Printf("User reporter (%s) already exists with point: %b", reporter.Name, reporter.Point)
+			log.Printf("[Report] User reporter (%s) already exists with point: %v", reporter.Name, reporter.Point)
 		}
 
 		// Create Report Record
@@ -64,7 +64,7 @@ func (c Command) Report() {
 			},
 		}
 		msg := fmt.Sprintf(
-			"*Apakah pesan Spam?*\nBatu vote untuk menghapus pesan ini\n\nReporter: %s (@%s)\nReport ID: #%v",
+			"💢 *Apakah pesan ini Spam?*\nBantu vote untuk menghapus pesan ini\n\nReporter: %s (@%s)\nReport ID: #%v",
 			c.Message.From.FirstName,
 			c.Message.From.UserName,
 			report.ID,
