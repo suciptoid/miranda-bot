@@ -1,6 +1,7 @@
 package commands
 
 import (
+	"github.com/jinzhu/gorm"
 	tg "gopkg.in/telegram-bot-api.v4"
 )
 
@@ -8,6 +9,7 @@ import (
 type Command struct {
 	Bot     *tg.BotAPI
 	Message *tg.Message
+	DB      *gorm.DB
 }
 
 // Setup ...
@@ -20,9 +22,9 @@ func (c Command) Setup(b *tg.BotAPI, m *tg.Message) {
 func (c Command) Handle(cs string) {
 
 	switch cs {
-	case "ping":
+	case "ping", "p":
 		c.Ping()
-	case "report":
+	case "report", "r", "spam":
 		c.Report()
 	case "rules":
 		c.Rules()

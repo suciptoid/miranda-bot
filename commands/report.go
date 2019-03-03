@@ -1,7 +1,9 @@
 package commands
 
 import (
+	"fmt"
 	"log"
+	"miranda-bot/models"
 
 	tg "gopkg.in/telegram-bot-api.v4"
 )
@@ -12,30 +14,47 @@ func (c Command) Report() {
 
 	if c.Message.ReplyToMessage != nil {
 
-		// Reply Reporter
-		// mr := tg.NewMessage(c.Message.Chat.ID, "Terimakasih laporannya 👏")
-		// mr.ParseMode = "markdown"
-		// mr.ReplyToMessageID = c.Message.MessageID
-		// c.Bot.Send(mr)
+		// Check user reporter
+		var reporter models.User
+		if err := c.DB.Where("telegram_id = ?", c.Message.From.ID).First(&reporter).Error; err != nil {
 
-		// Report to Admin
-		// re := fmt.Sprintf(
-		// 	"🚩 %s melaporkan post https://t.me/%s/%d\n\n",
-		// 	c.Message.From.FirstName,
-		// 	c.Message.Chat.UserName,
-		// 	c.Message.ReplyToMessage.MessageID,
-		// )
-		// ma := tg.NewMessage(receiver, re)
-		// ma.ParseMode = "markdown"
-		// // ma.ReplyToMessageID = c.Message.MessageID
-		// _, err := c.Bot.Send(ma)
-		// if err != nil {
-		// 	log.Println("Error send message", err)
-		// }
+			log.Printf("Create user reporter: %s", c.Message.From.UserName)
+			log.Println(err)
+
+			// Create user reporter to db if not exists
+			reporter = models.User{
+				TelegramID: c.Message.From.ID,
+				Name:       fmt.Sprintf("%s %s", c.Message.From.FirstName, c.Message.From.LastName),
+				Username:   c.Message.From.UserName,
+			}
+
+			c.DB.Create(&reporter)
+		} else {
+			log.Printf("User reporter (%s) already exists with point: %b", reporter.Name, reporter.Point)
+		}
+
+		// Create Report Record
+		var report models.Report
+		if err := c.DB.Where("message_id = ?", c.Message.ReplyToMessage.MessageID).First(&report).Error; err != nil {
+			report = models.Report{
+				MessageID:  c.Message.ReplyToMessage.MessageID,
+				ReporterID: reporter.TelegramID,
+			}
+
+			c.DB.Create(&report)
+		} else {
+			log.Printf("Pesan sudah pernah dilaporkan #%v", report.ID)
+			// Message already reported
+			nm := tg.NewMessage(c.Message.Chat.ID, fmt.Sprintf("Pesan sudah pernah dilaporkan dengan ID #%v", report.ID))
+			nm.ReplyToMessageID = c.Message.MessageID
+			c.Bot.Send(nm)
+
+			return
+		}
 
 		// Voting Message Inline Keyboard
-		cbUp := "up"
-		cbDown := "down"
+		cbUp := fmt.Sprintf("report:%v:up", report.MessageID)
+		cbDown := fmt.Sprintf("report:%v:down", report.MessageID)
 		keyboard := tg.InlineKeyboardMarkup{
 			InlineKeyboard: [][]tg.InlineKeyboardButton{
 				[]tg.InlineKeyboardButton{
@@ -44,7 +63,13 @@ func (c Command) Report() {
 				},
 			},
 		}
-		ma := tg.NewMessage(c.Message.Chat.ID, "*Apakah pesan Spam?*\nBatu vote ")
+		msg := fmt.Sprintf(
+			"*Apakah pesan Spam?*\nBatu vote untuk menghapus pesan ini\n\nReporter: %s (@%s)\nReport ID: #%v",
+			c.Message.From.FirstName,
+			c.Message.From.UserName,
+			report.ID,
+		)
+		ma := tg.NewMessage(c.Message.Chat.ID, msg)
 		ma.ReplyToMessageID = c.Message.ReplyToMessage.MessageID
 		ma.ParseMode = "markdown"
 		ma.ReplyMarkup = keyboard

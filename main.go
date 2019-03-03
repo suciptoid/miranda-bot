@@ -3,12 +3,16 @@ package main
 import (
 	"fmt"
 	"log"
+	"miranda-bot/callbacks"
 	"net/http"
 	"os"
 	"strings"
 
 	"miranda-bot/commands"
+	"miranda-bot/models"
 
+	"github.com/jinzhu/gorm"
+	_ "github.com/jinzhu/gorm/dialects/postgres"
 	"github.com/joho/godotenv"
 
 	tg "gopkg.in/telegram-bot-api.v4"
@@ -20,6 +24,14 @@ type Configuration struct {
 	UpdateMode string
 	Token      string
 	WebhookURL string
+	DBUrl      string
+}
+
+// App main app struct
+type App struct {
+	DB     *gorm.DB
+	Bot    *tg.BotAPI
+	Config *Configuration
 }
 
 func main() {
@@ -30,24 +42,43 @@ func main() {
 		// panic(err)
 	}
 
-	configuration := Configuration{
+	// Init Configuration
+	config := &Configuration{
 		Port:       os.Getenv("PORT"),
 		UpdateMode: os.Getenv("UPDATE_MODE"),
 		Token:      os.Getenv("TOKEN"),
 		WebhookURL: os.Getenv("WEBHOOK_URL"),
+		DBUrl:      os.Getenv("DATABASE_URL"),
 	}
 
-	bot, err := tg.NewBotAPI(configuration.Token)
+	bot, err := tg.NewBotAPI(config.Token)
 
 	if err != nil {
 		log.Panic(err)
+	}
+
+	// Init Database
+	db, err := gorm.Open("postgres", config.DBUrl)
+	if err != nil {
+		log.Panic("Unable connect to database", err)
+	}
+
+	defer db.Close()
+
+	log.Println("Connected to DB")
+	db.AutoMigrate(&models.User{}, &models.Report{})
+
+	app := App{
+		DB:     db,
+		Config: config,
+		Bot:    bot,
 	}
 
 	bot.Debug = false
 	log.Printf("@%s is wake up.. :)", bot.Self.UserName)
 
 	// Using Long Pooling
-	if configuration.UpdateMode == "1" {
+	if config.UpdateMode == "1" {
 		log.Println("Set mode pooling & remove webhook")
 
 		// Remove webhook if exist
@@ -66,13 +97,13 @@ func main() {
 			log.Fatal("Error geting updates", err)
 		}
 
-		handleUpdates(bot, updates)
+		app.handleUpdates(updates)
 	}
 
 	// Using Webhook
-	if configuration.UpdateMode == "2" {
-		log.Println("Set mode webhook to", configuration.WebhookURL)
-		_, err := bot.SetWebhook(tg.NewWebhook(configuration.WebhookURL))
+	if config.UpdateMode == "2" {
+		log.Println("Set mode webhook to", config.WebhookURL)
+		_, err := bot.SetWebhook(tg.NewWebhook(config.WebhookURL))
 
 		if err != nil {
 			log.Fatal("Error setting webhook", err)
@@ -89,17 +120,18 @@ func main() {
 
 		updates := bot.ListenForWebhook("/webhook")
 
-		log.Println("Running on port:", configuration.Port)
-		go http.ListenAndServe(":"+configuration.Port, nil)
+		log.Println("Running on port:", config.Port)
+		go http.ListenAndServe(":"+config.Port, nil)
 
-		handleUpdates(bot, updates)
+		app.handleUpdates(updates)
 
 	}
 
 }
 
-func handleUpdates(bot *tg.BotAPI, updates tg.UpdatesChannel) {
+func (app *App) handleUpdates(updates tg.UpdatesChannel) {
 
+	bot := app.Bot
 	for update := range updates {
 		// DEBUG INCOMING MESSAGE
 		// data, _ := json.Marshal(update)
@@ -108,10 +140,18 @@ func handleUpdates(bot *tg.BotAPI, updates tg.UpdatesChannel) {
 		// log.Println(message)
 
 		if update.CallbackQuery != nil {
-			// TODO: Handle Callback
-			bot.AnswerCallbackQuery(tg.NewCallback(update.CallbackQuery.ID, update.CallbackQuery.Data))
 
-			bot.Send(tg.NewMessage(update.CallbackQuery.Message.Chat.ID, update.CallbackQuery.Data))
+			cb := callbacks.Callback{
+				Bot:           bot,
+				CallbackQuery: update.CallbackQuery,
+				DB:            app.DB,
+			}
+
+			cq := update.CallbackQuery.Data
+
+			data := strings.Split(cq, ":")
+
+			cb.Handle(data[0])
 
 			continue
 		} else if update.Message == nil {
@@ -121,6 +161,7 @@ func handleUpdates(bot *tg.BotAPI, updates tg.UpdatesChannel) {
 		log.Printf("[%s:%s] %s", update.Message.From.UserName, update.Message.Chat.Title, update.Message.Text)
 
 		switch {
+
 		// New Member Join
 		case update.Message.NewChatMembers != nil:
 			//TODO: Handle welcome message
@@ -136,6 +177,7 @@ func handleUpdates(bot *tg.BotAPI, updates tg.UpdatesChannel) {
 			log.Println("New chat members", firstMember.FirstName)
 
 			bot.Send(msg)
+
 		case update.Message.Text != "":
 			// Filter Group command
 			m := update.Message.Text
@@ -149,6 +191,7 @@ func handleUpdates(bot *tg.BotAPI, updates tg.UpdatesChannel) {
 				c := commands.Command{
 					Bot:     bot,
 					Message: update.Message,
+					DB:      app.DB,
 				}
 				c.Handle(cs)
 			} else {
@@ -159,9 +202,11 @@ func handleUpdates(bot *tg.BotAPI, updates tg.UpdatesChannel) {
 		case update.Message.Photo != nil:
 			//TODO: Handle Photo message
 			log.Println("New Photo Message")
+
 		case update.Message.Sticker != nil:
 			//TODO: Handle Sticker Message
 			log.Println("New Sticker Message")
+
 		}
 
 	}
