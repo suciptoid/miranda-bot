@@ -4,8 +4,10 @@ import (
 	"fmt"
 	"log"
 	"miranda-bot/callbacks"
+	"miranda-bot/config"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 
 	"miranda-bot/commands"
@@ -18,20 +20,11 @@ import (
 	tg "gopkg.in/telegram-bot-api.v4"
 )
 
-// Configuration ...
-type Configuration struct {
-	Port       string
-	UpdateMode string
-	Token      string
-	WebhookURL string
-	DBUrl      string
-}
-
 // App main app struct
 type App struct {
 	DB     *gorm.DB
 	Bot    *tg.BotAPI
-	Config *Configuration
+	Config *config.Configuration
 }
 
 func main() {
@@ -43,12 +36,15 @@ func main() {
 	}
 
 	// Init Configuration
-	config := &Configuration{
-		Port:       os.Getenv("PORT"),
-		UpdateMode: os.Getenv("UPDATE_MODE"),
-		Token:      os.Getenv("TOKEN"),
-		WebhookURL: os.Getenv("WEBHOOK_URL"),
-		DBUrl:      os.Getenv("DATABASE_URL"),
+	groupID, _ := strconv.ParseInt(os.Getenv("GROUP_ID"), 10, 64)
+	config := &config.Configuration{
+		Port:        os.Getenv("PORT"),
+		UpdateMode:  os.Getenv("UPDATE_MODE"),
+		Token:       os.Getenv("TOKEN"),
+		WebhookURL:  os.Getenv("WEBHOOK_URL"),
+		DBUrl:       os.Getenv("DATABASE_URL"),
+		GroupID:     groupID,
+		BotUsername: os.Getenv("BOT_USERNAME"),
 	}
 
 	bot, err := tg.NewBotAPI(config.Token)
@@ -66,6 +62,7 @@ func main() {
 	defer db.Close()
 
 	log.Println("Connected to DB")
+	log.Printf("@%s working on group %v", config.BotUsername, config.GroupID)
 	db.AutoMigrate(&models.User{}, &models.Report{}, &models.UserReport{})
 
 	app := App{
@@ -145,6 +142,7 @@ func (app *App) handleUpdates(updates tg.UpdatesChannel) {
 				Bot:           bot,
 				CallbackQuery: update.CallbackQuery,
 				DB:            app.DB,
+				Config:        app.Config,
 			}
 
 			cq := update.CallbackQuery.Data
@@ -173,7 +171,7 @@ func (app *App) handleUpdates(updates tg.UpdatesChannel) {
 			// var member tg.User
 			for _, member := range *members {
 
-				if member.UserName == "miranda_bukanbot" && update.Message.Chat.ID != -1001289597394 {
+				if member.UserName == app.Config.BotUsername && update.Message.Chat.ID != app.Config.GroupID {
 					// Left Chat on unregistered group
 					_, err := bot.LeaveChat(tg.ChatConfig{
 						ChatID: update.Message.Chat.ID,
@@ -183,7 +181,7 @@ func (app *App) handleUpdates(updates tg.UpdatesChannel) {
 					if err != nil {
 						log.Printf("[leavechat] Error Leave chat from unauthorized group %v", update.Message.Chat.ID)
 					}
-				} else if member.IsBot && member.UserName != "miranda_bukanbot" {
+				} else if member.IsBot && member.UserName != app.Config.BotUsername {
 					// Kick other bot
 					_, err := bot.KickChatMember(tg.KickChatMemberConfig{
 						ChatMemberConfig: tg.ChatMemberConfig{
@@ -197,7 +195,7 @@ func (app *App) handleUpdates(updates tg.UpdatesChannel) {
 					}
 				} else {
 					// Send welcome message except itself
-					if member.UserName != "miranda_bukanbot" {
+					if member.UserName != app.Config.BotUsername {
 						text := fmt.Sprintf("Selamat datang *%s* 😊", member.FirstName)
 						msg := tg.NewMessage(update.Message.Chat.ID, text)
 						msg.ParseMode = "markdown"
@@ -223,6 +221,7 @@ func (app *App) handleUpdates(updates tg.UpdatesChannel) {
 					Bot:     bot,
 					Message: update.Message,
 					DB:      app.DB,
+					Config:  app.Config,
 				}
 				c.Handle(cs)
 			} else {

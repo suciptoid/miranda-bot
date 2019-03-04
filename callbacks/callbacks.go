@@ -2,6 +2,7 @@ package callbacks
 
 import (
 	"log"
+	"miranda-bot/config"
 
 	"github.com/jinzhu/gorm"
 	tg "gopkg.in/telegram-bot-api.v4"
@@ -12,6 +13,7 @@ type Callback struct {
 	Bot           *tg.BotAPI
 	DB            *gorm.DB
 	CallbackQuery *tg.CallbackQuery
+	Config        *config.Configuration
 }
 
 // Handle handle callback base on mode

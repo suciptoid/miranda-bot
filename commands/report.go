@@ -10,7 +10,6 @@ import (
 
 // Report ...
 func (c Command) Report() {
-	// var receiver int64 = -1001289597394
 
 	if c.Message.ReplyToMessage != nil {
 
