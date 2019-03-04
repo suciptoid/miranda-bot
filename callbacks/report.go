@@ -157,7 +157,9 @@ func (cb *Callback) Report() {
 	cb.Bot.Send(edit)
 
 	// Process Vote
+	dtx := cb.DB.Begin()
 	if report.VoteUp >= 3 && report.VoteDown < report.VoteUp {
+
 		log.Println("Vote up >= 3, dan votedown lebih sedikit saatnya hapus pesan...")
 
 		// Delete Reported Message
@@ -175,8 +177,62 @@ func (cb *Callback) Report() {
 		} else {
 			log.Println("[report] Vote message deleted!")
 		}
+
+		// Reducer Reporter Point
+		var reporter models.User
+		dtx.Set("gorm:query_option", "FOR UPDATE").Where("telegram_id = ?", report.ReporterID).First(&reporter)
+
+		reporter.Point = reporter.Point + 3
+		dtx.Save(&reporter)
+
+		// Update Point Voter
+		var votes = []models.UserReport{}
+		dtx.Set("gorm:query_option", "FOR UPDATE").Where("report_id = ?", report.ID).Where("vote = ?", 1).Preload("User").Find(&votes)
+
+		for _, ur := range votes {
+			u := ur.User
+			log.Printf("[vote] User %s point %v + 1", u.Name, u.Point)
+			u.Point = u.Point + 1
+			dtx.Save(&u)
+		}
+
+		// Delete Record
+		dtx.Unscoped().Delete(&report)
+		dtx.Unscoped().Where("report_id = ? ", report.ID).Delete(models.UserReport{})
+
 	} else if report.VoteDown >= 3 && report.VoteUp < report.VoteDown {
 		log.Println("Vote down >= 3, dan voteup lebih sedikit, saatnya punish reporter")
+
+		// Delete Vote
+		vm := tg.NewDeleteMessage(cq.Message.Chat.ID, cq.Message.MessageID)
+		if _, err := cb.Bot.Send(vm); err != nil {
+			log.Println("[report] Error delete vote message", err)
+		} else {
+			log.Println("[report] Vote message deleted!")
+		}
+
+		// Reducer Reporter Point
+		var reporter models.User
+		dtx.Set("gorm:query_option", "FOR UPDATE").Where("telegram_id = ?", report.ReporterID).First(&reporter)
+
+		reporter.Point = reporter.Point - 3
+		dtx.Save(&reporter)
+
+		// Update Point Voter
+		var votes = []models.UserReport{}
+		dtx.Set("gorm:query_option", "FOR UPDATE").Where("report_id = ?", report.ID).Where("vote = ?", 0).Preload("User").Find(&votes)
+
+		for _, ur := range votes {
+			u := ur.User
+			log.Printf("[vote] User %s point %v + 1", u.Name, u.Point)
+			u.Point = u.Point + 1
+			dtx.Save(&u)
+		}
+
+		// Delete Record
+		dtx.Unscoped().Delete(&report)
+		dtx.Unscoped().Where("report_id = ? ", report.ID).Delete(models.UserReport{})
 	}
+	dtx.Commit()
 
 }
