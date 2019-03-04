@@ -10,7 +10,6 @@ import (
 
 // Report ...
 func (c Command) Report() {
-	// var receiver int64 = -1001289597394
 
 	if c.Message.ReplyToMessage != nil {
 
@@ -46,8 +45,14 @@ func (c Command) Report() {
 			log.Printf("Pesan sudah pernah dilaporkan #%v", report.ID)
 			// Message already reported
 			nm := tg.NewMessage(c.Message.Chat.ID, fmt.Sprintf("Pesan sudah pernah dilaporkan dengan ID #%v", report.ID))
-			nm.ReplyToMessageID = c.Message.MessageID
+			nm.ReplyToMessageID = report.MessageID
 			c.Bot.Send(nm)
+
+			// Delete !report command
+			dr := tg.NewDeleteMessage(c.Message.Chat.ID, c.Message.MessageID)
+			if _, err := c.Bot.Send(dr); err != nil {
+				log.Println("[report] Error delete report message")
+			}
 
 			return
 		}
@@ -64,7 +69,7 @@ func (c Command) Report() {
 			},
 		}
 		msg := fmt.Sprintf(
-			"💢 *Apakah pesan ini Spam?*\nBantu vote untuk menghapus pesan ini\n\nReporter: %s (@%s)\nReport ID: #%v",
+			"💢 *Apakah ini pesan Spam?*\nBantu vote untuk menghapus pesan ini.\n\nReporter: %s (@%s)\nReport ID: #%v",
 			c.Message.From.FirstName,
 			c.Message.From.UserName,
 			report.ID,
@@ -73,9 +78,16 @@ func (c Command) Report() {
 		ma.ReplyToMessageID = c.Message.ReplyToMessage.MessageID
 		ma.ParseMode = "markdown"
 		ma.ReplyMarkup = keyboard
+
 		_, err := c.Bot.Send(ma)
 		if err != nil {
 			log.Println("Error send message", err)
+		}
+
+		// Delete !report command
+		dr := tg.NewDeleteMessage(c.Message.Chat.ID, c.Message.MessageID)
+		if _, err := c.Bot.Send(dr); err != nil {
+			log.Println("[report] Error delete report message")
 		}
 
 	} else {
