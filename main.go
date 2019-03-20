@@ -13,6 +13,7 @@ import (
 	"miranda-bot/commands"
 	"miranda-bot/models"
 
+	"github.com/getsentry/raven-go"
 	"github.com/jinzhu/gorm"
 	_ "github.com/jinzhu/gorm/dialects/postgres"
 	"github.com/joho/godotenv"
@@ -25,6 +26,11 @@ type App struct {
 	DB     *gorm.DB
 	Bot    *tg.BotAPI
 	Config *config.Configuration
+}
+
+func init() {
+	log.Println("Set up raven...")
+	raven.SetDSN("https://f2128fc9c33d4bfea0b33e220166a89e:e8ac6687004a476886ace7e3dcf0dd8e@sentry.io/1419349")
 }
 
 func main() {
@@ -191,7 +197,7 @@ func (app *App) handleUpdates(updates tg.UpdatesChannel) {
 					})
 					log.Printf("[kickbot] Kick bot @%s", member.UserName)
 					if err != nil {
-						log.Printf("[kickbot] Error kick bot @%s", member.UserName)
+						log.Printf("[kickbot] Error kick bot @%s :%v", member.UserName, err)
 					}
 				} else {
 					// Send welcome message except itself
