@@ -4,6 +4,8 @@ import (
 	"log"
 	"miranda-bot/config"
 
+	"github.com/getsentry/raven-go"
+
 	"github.com/jinzhu/gorm"
 	tg "gopkg.in/telegram-bot-api.v4"
 )
@@ -41,7 +43,12 @@ func (c *Command) Handle(cs string) {
 		} else {
 			log.Println("[report] unable call command from outside group")
 		}
+	case "adm", "admin":
+		c.AdminList()
+	case "raven":
+		raven.CaptureMessage("Test raven!", map[string]string{"category": "test"})
 	}
+
 }
 
 // IsFromGroup ...
