@@ -247,3 +247,44 @@ func (app *App) handleUpdates(updates tg.UpdatesChannel) {
 
 	}
 }
+
+func listenWebhook(bot *tg.BotAPI) tg.UpdatesChannel {
+	ch := make(chan tg.Update, bot.Buffer)
+
+	handler := func(w http.ResponseWriter, r *http.Request) {
+		bytes, _ := ioutil.ReadAll(r.Body)
+		r.Body.Close()
+
+		var update tg.Update
+		json.Unmarshal(bytes, &update)
+
+		ch <- update
+	}
+
+	http.Handle("/webhook", wrapRecover(http.HandlerFunc(handler)))
+
+	return ch
+}
+
+func wrapRecover(h http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var err error
+		defer func() {
+			r := recover()
+			if r != nil {
+				switch t := r.(type) {
+				case string:
+					err = errors.New(t)
+				case error:
+					err = t
+				default:
+					err = errors.New("Unknown error")
+				}
+
+				// TODO: Send Sentry
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+			}
+		}()
+		h.ServeHTTP(w, r)
+	})
+}
