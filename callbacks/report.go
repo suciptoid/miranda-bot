@@ -15,6 +15,18 @@ func (cb *Callback) Report() {
 	data := cq.Data
 	datas := strings.Split(data, ":")
 
+	// If reported message already deleted, delete report message
+	if cq.Message.ReplyToMessage == nil {
+		vm := tg.NewDeleteMessage(cq.Message.Chat.ID, cq.Message.MessageID)
+		if _, err := cb.Bot.Send(vm); err != nil {
+			log.Println("[report] Error delete vote message", err)
+		} else {
+			log.Println("[report] Vote message deleted!")
+		}
+
+		return
+	}
+
 	msgID := datas[1]
 
 	log.Printf(
@@ -23,6 +35,7 @@ func (cb *Callback) Report() {
 		datas[2],
 		msgID,
 	)
+
 	// Search User or Create New
 	var voter models.User
 	if err := cb.DB.Where("telegram_id = ?", cq.From.ID).First(&voter).Error; err != nil {
@@ -164,6 +177,7 @@ func (cb *Callback) Report() {
 
 		// Delete Reported Message
 		rm := tg.NewDeleteMessage(cq.Message.ReplyToMessage.Chat.ID, cq.Message.ReplyToMessage.MessageID)
+
 		if _, err := cb.Bot.Send(rm); err != nil {
 			log.Println("[report] Error delete reported message", err)
 		} else {
