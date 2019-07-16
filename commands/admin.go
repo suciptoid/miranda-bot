@@ -4,8 +4,7 @@ import (
 	"fmt"
 	"miranda-bot/models"
 
-	"github.com/getsentry/raven-go"
-
+	"github.com/getsentry/sentry-go"
 	tg "gopkg.in/telegram-bot-api.v4"
 )
 
@@ -36,7 +35,7 @@ func (c Command) AdminList() {
 	_, err := c.Bot.Send(m)
 
 	if err != nil {
-		raven.CaptureError(err, map[string]string{"command": "adminlist"})
+		sentry.CaptureException(err)
 	}
 
 	// log.Printf("Users: \n%s", msg)
