@@ -38,5 +38,4 @@ func (c Command) Ping() {
 		}
 		c.Bot.DeleteMessage(pong)
 	}()
-
 }

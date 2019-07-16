@@ -4,7 +4,7 @@ import (
 	"log"
 	"miranda-bot/config"
 
-	"github.com/getsentry/raven-go"
+	"github.com/getsentry/sentry-go"
 
 	"github.com/jinzhu/gorm"
 	tg "gopkg.in/telegram-bot-api.v4"
@@ -27,6 +27,8 @@ func (c *Command) Setup(b *tg.BotAPI, m *tg.Message) {
 // Handle command
 func (c *Command) Handle(cs string) {
 
+	defer sentry.Recover()
+
 	switch cs {
 	case "ping", "p":
 		c.Ping()
@@ -45,8 +47,6 @@ func (c *Command) Handle(cs string) {
 		}
 	case "adm", "admin":
 		c.AdminList()
-	case "raven":
-		raven.CaptureMessage("Test raven!", map[string]string{"category": "test"})
 	}
 
 }

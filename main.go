@@ -13,7 +13,7 @@ import (
 	"miranda-bot/commands"
 	"miranda-bot/models"
 
-	"github.com/getsentry/raven-go"
+	"github.com/getsentry/sentry-go"
 	"github.com/jinzhu/gorm"
 	_ "github.com/jinzhu/gorm/dialects/postgres"
 	"github.com/joho/godotenv"
@@ -28,17 +28,21 @@ type App struct {
 	Config *config.Configuration
 }
 
-func init() {
-	log.Println("Set up raven...")
-	raven.SetDSN("https://f2128fc9c33d4bfea0b33e220166a89e:e8ac6687004a476886ace7e3dcf0dd8e@sentry.io/1419349")
-}
-
 func main() {
 	// Load Configuration
 	err := godotenv.Load()
 	if err != nil {
 		log.Println("No .env file, reading from system env")
 		// panic(err)
+	}
+
+	// Init Sentry
+	serr := sentry.Init(sentry.ClientOptions{
+		Dsn: "https://f2128fc9c33d4bfea0b33e220166a89e:e8ac6687004a476886ace7e3dcf0dd8e@sentry.io/1419349",
+	})
+
+	if serr != nil {
+		log.Println("Error initialize sentry")
 	}
 
 	// Init Configuration
