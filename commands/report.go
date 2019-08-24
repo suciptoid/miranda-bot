@@ -69,14 +69,14 @@ func (c Command) Report() {
 			},
 		}
 		msg := fmt.Sprintf(
-			"💢 *Apakah ini pesan Spam?*\nBantu vote untuk menghapus pesan ini.\n\nReporter: %s (@%s)\nReport ID: #%v",
+			"💢 <b>Apakah ini pesan Spam?</b> \nBantu vote untuk menghapus pesan ini.\n\nReporter: %s (@%s)\nReport ID: #%v",
 			c.Message.From.FirstName,
 			c.Message.From.UserName,
 			report.ID,
 		)
 		ma := tg.NewMessage(c.Message.Chat.ID, msg)
 		ma.ReplyToMessageID = c.Message.ReplyToMessage.MessageID
-		ma.ParseMode = "markdown"
+		ma.ParseMode = "html"
 		ma.ReplyMarkup = keyboard
 
 		_, err := c.Bot.Send(ma)
