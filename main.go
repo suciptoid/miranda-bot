@@ -226,7 +226,7 @@ func (app *App) handleUpdates(updates tg.UpdatesChannel) {
 								tx.Rollback()
 
 								sentry.CaptureException(err)
-								return
+								continue
 							}
 
 							captcha = models.UserCaptcha{
@@ -238,7 +238,7 @@ func (app *App) handleUpdates(updates tg.UpdatesChannel) {
 								log.Println("[captcha] Unable to save code on database")
 								sentry.CaptureException(err)
 								tx.Rollback()
-								return
+								continue
 							}
 						}
 						// Commit transaction
@@ -289,10 +289,9 @@ func (app *App) handleUpdates(updates tg.UpdatesChannel) {
 						log.Println("[captcha] error query code on DB")
 						sentry.CaptureException(err)
 						tx.Rollback()
-						return
 					}
 					// No record found, skip
-					return
+					continue
 				}
 
 				// If captcha match, delete from record
@@ -302,7 +301,7 @@ func (app *App) handleUpdates(updates tg.UpdatesChannel) {
 						log.Println("[captcha] error remove captcha code from DB")
 						sentry.CaptureException(err)
 						tx.Rollback()
-						return
+						continue
 					}
 
 					// Verified Message
@@ -320,7 +319,7 @@ func (app *App) handleUpdates(updates tg.UpdatesChannel) {
 					if err != nil {
 						sentry.CaptureException(err)
 						log.Printf("[captcha:%d] unable to send verified message", update.Message.From.ID)
-						return
+						continue
 					}
 
 					// Delete code
