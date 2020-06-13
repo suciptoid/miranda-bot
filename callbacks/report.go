@@ -154,7 +154,7 @@ func (cb *Callback) Report() {
 	cbDown := fmt.Sprintf("report:%v:down", report.MessageID)
 	keyboard := tg.InlineKeyboardMarkup{
 		InlineKeyboard: [][]tg.InlineKeyboardButton{
-			[]tg.InlineKeyboardButton{
+			{
 				tg.InlineKeyboardButton{Text: fmt.Sprintf("%v 👍", report.VoteUp), CallbackData: &cbUp},
 				tg.InlineKeyboardButton{Text: fmt.Sprintf("%v 👎", report.VoteDown), CallbackData: &cbDown},
 			},

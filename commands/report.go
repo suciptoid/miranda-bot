@@ -62,7 +62,7 @@ func (c Command) Report() {
 		cbDown := fmt.Sprintf("report:%v:down", report.MessageID)
 		keyboard := tg.InlineKeyboardMarkup{
 			InlineKeyboard: [][]tg.InlineKeyboardButton{
-				[]tg.InlineKeyboardButton{
+				{
 					tg.InlineKeyboardButton{Text: "👍", CallbackData: &cbUp},
 					tg.InlineKeyboardButton{Text: "👎", CallbackData: &cbDown},
 				},
