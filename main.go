@@ -244,14 +244,15 @@ func (app *App) handleUpdates(updates tg.UpdatesChannel) {
 						tx.Commit()
 
 						text := fmt.Sprintf(
-							"Selamat datang *%s*\n\nSilahkan balas dengan pesan *%s* untuk memastikan kamu bukan bot.",
+							"Selamat datang [%s](tg://user?id=%d)\n\nSilahkan balas dengan pesan `%s` untuk memastikan kamu bukan bot.",
 							member.FirstName,
-							captcha.Code,
+							member.ID,
+							captcha.Code
 						)
 						msg := tg.NewMessage(update.Message.Chat.ID, text)
 						msg.ParseMode = "markdown"
 
-						log.Println("[join] New chat members", member.FirstName)
+						log.Println("[join] New chat members", member.FirstName, member.ID)
 
 						bot.Send(msg)
 					}
@@ -305,8 +306,9 @@ func (app *App) handleUpdates(updates tg.UpdatesChannel) {
 
 					// Verified Message
 					text := fmt.Sprintf(
-						"Verifikasi berhasil *%s* 👍\nSekarang kamu bisa mengirim pesan 🤗",
+						"Verifikasi berhasil [%s](tg://user?id=%d) 👍\nSekarang kamu bisa mengirim pesan 🤗",
 						update.Message.From.FirstName,
+						update.Message.From.ID
 					)
 					msg := tg.NewMessage(update.Message.Chat.ID, text)
 					msg.ParseMode = "markdown"
