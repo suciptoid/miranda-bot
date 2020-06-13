@@ -116,6 +116,12 @@ func main() {
 
 	// Using Webhook
 	if config.UpdateMode == "2" {
+
+		updates := bot.ListenForWebhook("/webhook")
+
+		log.Println("Running on port:", config.Port)
+		go http.ListenAndServe(":"+config.Port, nil)
+
 		log.Println("Set mode webhook to", config.WebhookURL)
 		_, err := bot.SetWebhook(tg.NewWebhook(config.WebhookURL))
 
@@ -131,11 +137,6 @@ func main() {
 		if info.LastErrorDate != 0 {
 			log.Printf("[Telegram callback failed]%s", info.LastErrorMessage)
 		}
-
-		updates := bot.ListenForWebhook("/webhook")
-
-		log.Println("Running on port:", config.Port)
-		go http.ListenAndServe(":"+config.Port, nil)
 
 		app.handleUpdates(updates)
 
