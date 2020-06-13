@@ -247,7 +247,7 @@ func (app *App) handleUpdates(updates tg.UpdatesChannel) {
 							"Selamat datang [%s](tg://user?id=%d)\n\nSilahkan balas dengan pesan `%s` untuk memastikan kamu bukan bot.",
 							member.FirstName,
 							member.ID,
-							captcha.Code
+							captcha.Code,
 						)
 						msg := tg.NewMessage(update.Message.Chat.ID, text)
 						msg.ParseMode = "markdown"
@@ -308,7 +308,7 @@ func (app *App) handleUpdates(updates tg.UpdatesChannel) {
 					text := fmt.Sprintf(
 						"Verifikasi berhasil [%s](tg://user?id=%d) 👍\nSekarang kamu bisa mengirim pesan 🤗",
 						update.Message.From.FirstName,
-						update.Message.From.ID
+						update.Message.From.ID,
 					)
 					msg := tg.NewMessage(update.Message.Chat.ID, text)
 					msg.ParseMode = "markdown"
