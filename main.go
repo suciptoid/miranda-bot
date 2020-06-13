@@ -206,11 +206,11 @@ func (app *App) handleUpdates(updates tg.UpdatesChannel) {
 				} else {
 					// Send welcome message except itself
 					if member.UserName != app.Config.BotUsername {
-						text := fmt.Sprintf("Selamat datang *%s* 😊", member.FirstName)
+						text := fmt.Sprintf("Selamat datang [%s](tg://user?id=%d) 😊", member.FirstName, member.ID)
 						msg := tg.NewMessage(update.Message.Chat.ID, text)
 						msg.ParseMode = "markdown"
 
-						log.Println("New chat members", member.FirstName)
+						log.Println("New chat members", member.FirstName, member.ID)
 
 						bot.Send(msg)
 					}
