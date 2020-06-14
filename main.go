@@ -71,6 +71,9 @@ func main() {
 		log.Panic("Unable connect to database", err)
 	}
 
+	// Limit to 2, heroku max is 3
+	db.DB().SetMaxOpenConns(2)
+
 	defer db.Close()
 
 	log.Println("Connected to DB")
