@@ -138,20 +138,12 @@ func main() {
 	http.ListenAndServe(":"+config.Port, r)
 }
 
-func (app *App) handleUpdates(updates tg.UpdatesChannel) {
-
-	for update := range updates {
-		app.handle(update)
-	}
-}
-
 func (app *App) handle(update tg.Update) {
 	bot := app.Bot
-	// log.Println(message)
-	log.Println("Ada message")
 
 	if update.CallbackQuery != nil {
 
+		log.Println("[callback] handle callback")
 		cb := callbacks.Callback{
 			Bot:           bot,
 			CallbackQuery: update.CallbackQuery,
@@ -167,6 +159,7 @@ func (app *App) handle(update tg.Update) {
 
 		return
 	} else if update.Message == nil {
+		log.Println("[update] tidak ada message di update")
 		return
 	}
 
@@ -251,7 +244,10 @@ func (app *App) handle(update tg.Update) {
 
 					log.Println("[join] New chat members", member.FirstName, member.ID)
 
-					bot.Send(msg)
+					if _, err := bot.Send(msg); err != nil {
+						log.Println("[bot] unable to send message")
+						sentry.CaptureException(err)
+					}
 				}
 			}
 		}
@@ -284,9 +280,10 @@ func (app *App) handle(update tg.Update) {
 				if !gorm.IsRecordNotFoundError(err) {
 					log.Println("[captcha] error query code on DB")
 					sentry.CaptureException(err)
-					tx.Rollback()
 				}
 				// No record found, skip
+				log.Println("[captcha] no record found, lanjut")
+				tx.Rollback()
 				return
 			}
 
@@ -315,6 +312,7 @@ func (app *App) handle(update tg.Update) {
 				if err != nil {
 					sentry.CaptureException(err)
 					log.Printf("[captcha:%d] unable to send verified message", update.Message.From.ID)
+					tx.Rollback()
 					return
 				}
 
@@ -360,6 +358,8 @@ func (app *App) handle(update tg.Update) {
 		//TODO: Handle Sticker Message
 		log.Println("New Sticker Message")
 
+	default:
+		log.Printf("[update] update handler tidak diketahui %v", update)
 	}
 
 }

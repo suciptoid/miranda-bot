@@ -3,7 +3,6 @@ package commands
 import (
 	"fmt"
 	"log"
-	"miranda-bot/models"
 	"time"
 
 	tg "gopkg.in/telegram-bot-api.v4"
@@ -11,17 +10,14 @@ import (
 
 // Ping send pong
 func (c Command) Ping() {
-	tx := c.DB.Begin()
-	var userCount int
-	tx.Model(&models.User{}).Count(&userCount)
-	tx.Commit()
+	log.Println("[command] Call ping!")
 
 	dbPing := true
 	if err := c.DB.DB().Ping(); err != nil {
 		dbPing = false
 	}
 
-	msg := tg.NewMessage(c.Message.Chat.ID, fmt.Sprintf("Pong ✨\n\nuser: %d\ndb ok: %v", userCount, dbPing))
+	msg := tg.NewMessage(c.Message.Chat.ID, fmt.Sprintf("Pong ✨\n\ndb ok: %v", dbPing))
 	msg.ParseMode = "markdown"
 
 	r, err := c.Bot.Send(msg)
