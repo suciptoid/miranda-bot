@@ -4,6 +4,7 @@ go 1.14
 
 require (
 	github.com/getsentry/sentry-go v0.6.1
+	github.com/go-chi/chi v4.1.2+incompatible
 	github.com/go-telegram-bot-api/telegram-bot-api v4.6.4+incompatible // indirect
 	github.com/jinzhu/gorm v1.9.12
 	github.com/joho/godotenv v1.3.0

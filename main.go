@@ -1,7 +1,9 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"miranda-bot/callbacks"
 	"miranda-bot/config"
@@ -15,6 +17,8 @@ import (
 	"miranda-bot/models"
 
 	"github.com/getsentry/sentry-go"
+	"github.com/go-chi/chi"
+	"github.com/go-chi/chi/middleware"
 	"github.com/jinzhu/gorm"
 	_ "github.com/jinzhu/gorm/dialects/postgres"
 	"github.com/joho/godotenv"
@@ -95,280 +99,267 @@ func main() {
 	bot.Debug = false
 	log.Printf("@%s is wake up.. :)", bot.Self.UserName)
 
-	// Using Long Pooling
-	if config.UpdateMode == "1" {
-		log.Println("Set mode pooling & remove webhook")
-
-		// Remove webhook if exist
-		_, err := bot.RemoveWebhook()
-
-		if err != nil {
-			log.Fatal("Error removing webhook")
-		}
-
-		u := tg.NewUpdate(0)
-		u.Timeout = 60
-
-		updates, err := bot.GetUpdatesChan(u)
-
-		if err != nil {
-			log.Fatal("Error geting updates", err)
-		}
-
-		app.handleUpdates(updates)
-	}
-
 	// Using Webhook
-	if config.UpdateMode == "2" {
 
-		updates := bot.ListenForWebhook("/webhook")
+	r := chi.NewRouter()
 
-		log.Println("Running on port:", config.Port)
-		go http.ListenAndServe(":"+config.Port, nil)
+	r.Use(middleware.Logger)
+	r.Use(middleware.Recoverer)
 
-		log.Println("Set mode webhook to", config.WebhookURL)
-		_, err := bot.SetWebhook(tg.NewWebhook(config.WebhookURL))
+	r.Post("/webhook", func(w http.ResponseWriter, r *http.Request) {
+		bytes, _ := ioutil.ReadAll(r.Body)
 
-		if err != nil {
-			log.Fatal("Error setting webhook", err)
+		var update tg.Update
+		if err := json.Unmarshal(bytes, &update); err != nil {
+			sentry.CaptureException(err)
+			log.Println("[parse] Error parsing updates")
 		}
 
-		info, err := bot.GetWebhookInfo()
-		if err != nil {
-			log.Fatal("Error getting webhook info", err)
-		}
+		go app.handle(update)
+	})
 
-		if info.LastErrorDate != 0 {
-			log.Printf("[Telegram callback failed]%s", info.LastErrorMessage)
-		}
-
-		app.handleUpdates(updates)
-
+	log.Println("Set mode webhook to", config.WebhookURL)
+	if _, err := bot.SetWebhook(tg.NewWebhook(config.WebhookURL)); err != nil {
+		sentry.CaptureException(err)
+		log.Fatal("Error setting webhook", err)
 	}
 
+	info, err := bot.GetWebhookInfo()
+	if err != nil {
+		log.Fatal("Error getting webhook info", err)
+		sentry.CaptureException(err)
+	}
+
+	if info.LastErrorDate != 0 {
+		log.Printf("[Telegram callback failed]%s", info.LastErrorMessage)
+	}
+
+	log.Println("Running on port:", config.Port)
+	http.ListenAndServe(":"+config.Port, r)
 }
 
 func (app *App) handleUpdates(updates tg.UpdatesChannel) {
 
-	bot := app.Bot
 	for update := range updates {
-		// DEBUG INCOMING MESSAGE
-		// data, _ := json.Marshal(update)
-		// message := bytes.NewBufferString(string(data))
+		app.handle(update)
+	}
+}
 
-		// log.Println(message)
+func (app *App) handle(update tg.Update) {
+	bot := app.Bot
+	// log.Println(message)
+	log.Println("Ada message")
 
-		if update.CallbackQuery != nil {
+	if update.CallbackQuery != nil {
 
-			cb := callbacks.Callback{
-				Bot:           bot,
-				CallbackQuery: update.CallbackQuery,
-				DB:            app.DB,
-				Config:        app.Config,
-			}
-
-			cq := update.CallbackQuery.Data
-
-			data := strings.Split(cq, ":")
-
-			cb.Handle(data[0])
-
-			continue
-		} else if update.Message == nil {
-			continue
+		cb := callbacks.Callback{
+			Bot:           bot,
+			CallbackQuery: update.CallbackQuery,
+			DB:            app.DB,
+			Config:        app.Config,
 		}
 
-		log.Printf("[%s:%s] %s", update.Message.From.UserName, update.Message.Chat.Title, update.Message.Text)
+		cq := update.CallbackQuery.Data
 
-		switch {
+		data := strings.Split(cq, ":")
 
-		// New Member Join
-		case update.Message.NewChatMembers != nil:
-			//TODO: Handle welcome message
-			// log.Println("New Chat Members")
+		cb.Handle(data[0])
 
-			members := update.Message.NewChatMembers
-			// firstMember := (*members)[0]
+		return
+	} else if update.Message == nil {
+		return
+	}
 
-			// var member tg.User
-			for _, member := range *members {
+	log.Printf("[%s:%s] %s", update.Message.From.UserName, update.Message.Chat.Title, update.Message.Text)
 
-				if member.UserName == app.Config.BotUsername && update.Message.Chat.ID != app.Config.GroupID {
-					// Left Chat on unregistered group
-					_, err := bot.LeaveChat(tg.ChatConfig{
+	switch {
+
+	// New Member Join
+	case update.Message.NewChatMembers != nil:
+		//TODO: Handle welcome message
+		// log.Println("New Chat Members")
+
+		members := update.Message.NewChatMembers
+		// firstMember := (*members)[0]
+
+		// var member tg.User
+		for _, member := range *members {
+
+			if member.UserName == app.Config.BotUsername && update.Message.Chat.ID != app.Config.GroupID {
+				// Left Chat on unregistered group
+				_, err := bot.LeaveChat(tg.ChatConfig{
+					ChatID: update.Message.Chat.ID,
+				})
+
+				log.Printf("[leavechat] Leave chat from unauthorized group %v", update.Message.Chat.ID)
+				if err != nil {
+					log.Printf("[leavechat] Error Leave chat from unauthorized group %v", update.Message.Chat.ID)
+				}
+			} else if member.IsBot && member.UserName != app.Config.BotUsername {
+				// Kick other bot
+				_, err := bot.KickChatMember(tg.KickChatMemberConfig{
+					ChatMemberConfig: tg.ChatMemberConfig{
 						ChatID: update.Message.Chat.ID,
-					})
-
-					log.Printf("[leavechat] Leave chat from unauthorized group %v", update.Message.Chat.ID)
-					if err != nil {
-						log.Printf("[leavechat] Error Leave chat from unauthorized group %v", update.Message.Chat.ID)
-					}
-				} else if member.IsBot && member.UserName != app.Config.BotUsername {
-					// Kick other bot
-					_, err := bot.KickChatMember(tg.KickChatMemberConfig{
-						ChatMemberConfig: tg.ChatMemberConfig{
-							ChatID: update.Message.Chat.ID,
-							UserID: member.ID,
-						},
-					})
-					log.Printf("[kickbot] Kick bot @%s", member.UserName)
-					if err != nil {
-						log.Printf("[kickbot] Error kick bot @%s :%v", member.UserName, err)
-					}
-				} else {
-					// Send welcome message except itself
-					if member.UserName != app.Config.BotUsername {
-						tx := app.DB.Begin()
-
-						var captcha models.UserCaptcha
-						code := randomStr(5)
-
-						if err := tx.Where("user_id = ?", member.ID).First(&captcha).Error; err != nil {
-							// Unexpected error
-							if !gorm.IsRecordNotFoundError(err) {
-								log.Println("[captcha] unable to find existing code on db")
-								tx.Rollback()
-
-								sentry.CaptureException(err)
-								continue
-							}
-
-							captcha = models.UserCaptcha{
-								UserID: member.ID,
-								Code:   code,
-							}
-
-							if err := tx.Create(&captcha).Error; err != nil {
-								log.Println("[captcha] Unable to save code on database")
-								sentry.CaptureException(err)
-								tx.Rollback()
-								continue
-							}
-						}
-						// Commit transaction
-						tx.Commit()
-
-						text := fmt.Sprintf(
-							"Selamat datang [%s](tg://user?id=%d)\n\nSilahkan balas dengan pesan `%s` untuk memastikan kamu bukan bot.",
-							member.FirstName,
-							member.ID,
-							captcha.Code,
-						)
-						msg := tg.NewMessage(update.Message.Chat.ID, text)
-						msg.ParseMode = "markdown"
-
-						log.Println("[join] New chat members", member.FirstName, member.ID)
-
-						bot.Send(msg)
-					}
+						UserID: member.ID,
+					},
+				})
+				log.Printf("[kickbot] Kick bot @%s", member.UserName)
+				if err != nil {
+					log.Printf("[kickbot] Error kick bot @%s :%v", member.UserName, err)
 				}
-			}
-
-		case update.Message.Text != "":
-			// Filter Group command
-			m := update.Message.Text
-
-			if i := strings.Index(m, "!"); i == 0 {
-				s := strings.Split(m, " ")
-				cs := strings.Replace(s[0], "!", "", 1)
-				log.Printf("[command] %s", cs)
-
-				// Handle Update
-				c := commands.Command{
-					Bot:     bot,
-					Message: update.Message,
-					DB:      app.DB,
-					Config:  app.Config,
-				}
-				c.Handle(cs)
 			} else {
-				// Check if message length is 5, chek contain captcha or not
-				uid := update.Message.From.ID
-				tx := app.DB.Begin()
-				var captcha models.UserCaptcha
+				// Send welcome message except itself
+				if member.UserName != app.Config.BotUsername {
+					tx := app.DB.Begin()
 
-				// Check on DB
-				if err := tx.Where("user_id = ?", uid).First(&captcha).Error; err != nil {
-					if !gorm.IsRecordNotFoundError(err) {
-						log.Println("[captcha] error query code on DB")
-						sentry.CaptureException(err)
-						tx.Rollback()
+					var captcha models.UserCaptcha
+					code := randomStr(5)
+
+					if err := tx.Where("user_id = ?", member.ID).First(&captcha).Error; err != nil {
+						// Unexpected error
+						if !gorm.IsRecordNotFoundError(err) {
+							log.Println("[captcha] unable to find existing code on db")
+							tx.Rollback()
+
+							sentry.CaptureException(err)
+							return
+						}
+
+						captcha = models.UserCaptcha{
+							UserID: member.ID,
+							Code:   code,
+						}
+
+						if err := tx.Create(&captcha).Error; err != nil {
+							log.Println("[captcha] Unable to save code on database")
+							sentry.CaptureException(err)
+							tx.Rollback()
+							return
+						}
 					}
-					// No record found, skip
-					continue
-				}
+					// Commit transaction
+					tx.Commit()
 
-				// If captcha match, delete from record
-				if len(m) == 5 && captcha.Code == m {
-					// Delete captcha from DB
-					if err := tx.Unscoped().Delete(&captcha).Error; err != nil {
-						log.Println("[captcha] error remove captcha code from DB")
-						sentry.CaptureException(err)
-						tx.Rollback()
-						continue
-					}
-
-					// Verified Message
 					text := fmt.Sprintf(
-						"Verifikasi berhasil [%s](tg://user?id=%d) 👍\nSekarang kamu bisa mengirim pesan 🤗",
-						update.Message.From.FirstName,
-						update.Message.From.ID,
+						"Selamat datang [%s](tg://user?id=%d)\n\nSilahkan balas dengan pesan `%s` untuk memastikan kamu bukan bot.",
+						member.FirstName,
+						member.ID,
+						captcha.Code,
 					)
 					msg := tg.NewMessage(update.Message.Chat.ID, text)
 					msg.ParseMode = "markdown"
 
-					log.Printf("[captcha:%d] Captcha resolved", update.Message.From.ID)
+					log.Println("[join] New chat members", member.FirstName, member.ID)
 
-					r, err := bot.Send(msg)
-					if err != nil {
-						sentry.CaptureException(err)
-						log.Printf("[captcha:%d] unable to send verified message", update.Message.From.ID)
-						continue
-					}
-
-					// Delete code
-					if _, err := bot.DeleteMessage(tg.DeleteMessageConfig{
-						ChatID:    update.Message.Chat.ID,
-						MessageID: update.Message.MessageID,
-					}); err != nil {
-						log.Println("[captcha] Error delete code message")
-						sentry.CaptureException(err)
-					}
-
-					// Delete verfied message after 3sec
-					go func() {
-						log.Printf("[captcha] Deleting message %d in 3 seconds...", r.Chat.ID)
-						time.Sleep(3 * time.Second)
-
-						// Delete Pong after a few second
-						pong := tg.DeleteMessageConfig{
-							ChatID:    r.Chat.ID,
-							MessageID: r.MessageID,
-						}
-						bot.DeleteMessage(pong)
-					}()
-				} else {
-					// If has captcha & message not match with code, delete message
-					vm := tg.NewDeleteMessage(update.Message.Chat.ID, update.Message.MessageID)
-					if _, err := app.Bot.Send(vm); err != nil {
-						log.Println("[captcha] Error delete unverified user message", err)
-					} else {
-						log.Printf("[captcha:%d] Message deleted from unverified user!", update.Message.From.ID)
-					}
+					bot.Send(msg)
 				}
-				tx.Commit()
+			}
+		}
 
+	case update.Message.Text != "":
+		// Filter Group command
+		m := update.Message.Text
+
+		if i := strings.Index(m, "!"); i == 0 {
+			s := strings.Split(m, " ")
+			cs := strings.Replace(s[0], "!", "", 1)
+			log.Printf("[command] %s", cs)
+
+			// Handle Update
+			c := commands.Command{
+				Bot:     bot,
+				Message: update.Message,
+				DB:      app.DB,
+				Config:  app.Config,
+			}
+			c.Handle(cs)
+		} else {
+			// Check if message length is 5, chek contain captcha or not
+			uid := update.Message.From.ID
+			tx := app.DB.Begin()
+			var captcha models.UserCaptcha
+
+			// Check on DB
+			if err := tx.Where("user_id = ?", uid).First(&captcha).Error; err != nil {
+				if !gorm.IsRecordNotFoundError(err) {
+					log.Println("[captcha] error query code on DB")
+					sentry.CaptureException(err)
+					tx.Rollback()
+				}
+				// No record found, skip
+				return
 			}
 
-		case update.Message.Photo != nil:
-			//TODO: Handle Photo message
-			log.Println("New Photo Message")
+			// If captcha match, delete from record
+			if len(m) == 5 && captcha.Code == m {
+				// Delete captcha from DB
+				if err := tx.Unscoped().Delete(&captcha).Error; err != nil {
+					log.Println("[captcha] error remove captcha code from DB")
+					sentry.CaptureException(err)
+					tx.Rollback()
+					return
+				}
 
-		case update.Message.Sticker != nil:
-			//TODO: Handle Sticker Message
-			log.Println("New Sticker Message")
+				// Verified Message
+				text := fmt.Sprintf(
+					"Verifikasi berhasil [%s](tg://user?id=%d) 👍\nSekarang kamu bisa mengirim pesan 🤗",
+					update.Message.From.FirstName,
+					update.Message.From.ID,
+				)
+				msg := tg.NewMessage(update.Message.Chat.ID, text)
+				msg.ParseMode = "markdown"
+
+				log.Printf("[captcha:%d] Captcha resolved", update.Message.From.ID)
+
+				r, err := bot.Send(msg)
+				if err != nil {
+					sentry.CaptureException(err)
+					log.Printf("[captcha:%d] unable to send verified message", update.Message.From.ID)
+					return
+				}
+
+				// Delete code
+				if _, err := bot.DeleteMessage(tg.DeleteMessageConfig{
+					ChatID:    update.Message.Chat.ID,
+					MessageID: update.Message.MessageID,
+				}); err != nil {
+					log.Println("[captcha] Error delete code message")
+					sentry.CaptureException(err)
+				}
+
+				// Delete verfied message after 3sec
+				go func() {
+					log.Printf("[captcha] Deleting message %d in 3 seconds...", r.Chat.ID)
+					time.Sleep(3 * time.Second)
+
+					// Delete Pong after a few second
+					pong := tg.DeleteMessageConfig{
+						ChatID:    r.Chat.ID,
+						MessageID: r.MessageID,
+					}
+					bot.DeleteMessage(pong)
+				}()
+			} else {
+				// If has captcha & message not match with code, delete message
+				vm := tg.NewDeleteMessage(update.Message.Chat.ID, update.Message.MessageID)
+				if _, err := app.Bot.Send(vm); err != nil {
+					log.Println("[captcha] Error delete unverified user message", err)
+				} else {
+					log.Printf("[captcha:%d] Message deleted from unverified user!", update.Message.From.ID)
+				}
+			}
+			tx.Commit()
 
 		}
 
+	case update.Message.Photo != nil:
+		//TODO: Handle Photo message
+		log.Println("New Photo Message")
+
+	case update.Message.Sticker != nil:
+		//TODO: Handle Sticker Message
+		log.Println("New Sticker Message")
+
 	}
+
 }
