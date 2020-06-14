@@ -6,6 +6,7 @@ import "github.com/jinzhu/gorm"
 type UserCaptcha struct {
 	gorm.Model
 
-	UserID int    `gorm:"index"`
-	Code   string `gorm:"size:5"`
+	UserID    int    `gorm:"index"`
+	Code      string `gorm:"size:5"`
+	MessageID int
 }

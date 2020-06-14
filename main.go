@@ -165,6 +165,106 @@ func (app *App) handle(update tg.Update) {
 
 	log.Printf("[%s:%s] %s", update.Message.From.UserName, update.Message.Chat.Title, update.Message.Text)
 
+	// Captcha Middleware
+	if update.Message != nil {
+		uid := update.Message.From.ID
+		tx := app.DB.Begin()
+		captchaExists := true
+
+		var captcha models.UserCaptcha
+
+		// Check on DB
+		if err := tx.Where("user_id = ?", uid).First(&captcha).Error; err != nil {
+			if !gorm.IsRecordNotFoundError(err) {
+				log.Println("[captcha] error query code on DB")
+				sentry.CaptureException(err)
+			} else {
+				// No Captcha
+				captchaExists = false
+			}
+		}
+
+		// If captcha match, delete from record
+		if captchaExists {
+			m := update.Message.Text
+
+			// User have unresolved captcha, and send captcha code
+			if len(m) == 5 && captcha.Code == m {
+				// Delete captcha from DB
+				if err := tx.Unscoped().Delete(&captcha).Error; err != nil {
+					log.Println("[captcha] error remove captcha code from DB")
+					sentry.CaptureException(err)
+					tx.Rollback()
+					return
+				}
+
+				// Verified Message
+				text := fmt.Sprintf(
+					"Verifikasi berhasil [%s](tg://user?id=%d) 👍\nSekarang kamu bisa mengirim pesan 🤗",
+					update.Message.From.FirstName,
+					update.Message.From.ID,
+				)
+				msg := tg.NewMessage(update.Message.Chat.ID, text)
+				msg.ParseMode = "markdown"
+
+				log.Printf("[captcha:%d] Captcha resolved", update.Message.From.ID)
+
+				r, err := bot.Send(msg)
+				if err != nil {
+					sentry.CaptureException(err)
+					log.Printf("[captcha:%d] unable to send verified message", update.Message.From.ID)
+					tx.Rollback()
+					return
+				}
+
+				// Delete code
+				if _, err := bot.DeleteMessage(tg.DeleteMessageConfig{
+					ChatID:    update.Message.Chat.ID,
+					MessageID: update.Message.MessageID,
+				}); err != nil {
+					log.Println("[captcha] Error delete code message")
+					sentry.CaptureException(err)
+				}
+
+				// Delete Welcome
+				if captcha.MessageID > 0 {
+					if _, err := bot.DeleteMessage(tg.DeleteMessageConfig{
+						ChatID:    update.Message.Chat.ID,
+						MessageID: captcha.MessageID,
+					}); err != nil {
+						log.Println("[captcha] Error delete welcome message")
+						sentry.CaptureException(err)
+					}
+				}
+
+				// Delete verfied message after 3sec
+				go func() {
+					log.Printf("[captcha] Deleting message %d in 3 seconds...", r.Chat.ID)
+					time.Sleep(3 * time.Second)
+
+					// Delete Pong after a few second
+					pong := tg.DeleteMessageConfig{
+						ChatID:    r.Chat.ID,
+						MessageID: r.MessageID,
+					}
+					bot.DeleteMessage(pong)
+				}()
+			} else {
+				// If has captcha & message not match with code, delete message
+				vm := tg.NewDeleteMessage(update.Message.Chat.ID, update.Message.MessageID)
+				if _, err := app.Bot.Send(vm); err != nil {
+					log.Println("[captcha] Error delete unverified user message", err)
+				} else {
+					log.Printf("[captcha:%d] Message deleted from unverified user!", update.Message.From.ID)
+				}
+
+				tx.Commit()
+				return
+			}
+		}
+		tx.Commit()
+	}
+
 	switch {
 
 	// New Member Join
@@ -230,8 +330,6 @@ func (app *App) handle(update tg.Update) {
 							return
 						}
 					}
-					// Commit transaction
-					tx.Commit()
 
 					text := fmt.Sprintf(
 						"Selamat datang [%s](tg://user?id=%d)\n\nSilahkan balas dengan pesan `%s` untuk memastikan kamu bukan bot.",
@@ -244,10 +342,22 @@ func (app *App) handle(update tg.Update) {
 
 					log.Println("[join] New chat members", member.FirstName, member.ID)
 
-					if _, err := bot.Send(msg); err != nil {
+					welcome, err := bot.Send(msg)
+					if err != nil {
 						log.Println("[bot] unable to send message")
 						sentry.CaptureException(err)
+						return
 					}
+					captcha.MessageID = welcome.MessageID
+
+					if err := tx.Save(&captcha).Error; err != nil {
+						log.Println("[captcha] unable to update message ID")
+						sentry.CaptureException(err)
+					}
+
+					// Commit transaction
+					tx.Commit()
+
 				}
 			}
 		}
@@ -270,83 +380,6 @@ func (app *App) handle(update tg.Update) {
 			}
 			c.Handle(cs)
 		} else {
-			// Check if message length is 5, chek contain captcha or not
-			uid := update.Message.From.ID
-			tx := app.DB.Begin()
-			var captcha models.UserCaptcha
-
-			// Check on DB
-			if err := tx.Where("user_id = ?", uid).First(&captcha).Error; err != nil {
-				if !gorm.IsRecordNotFoundError(err) {
-					log.Println("[captcha] error query code on DB")
-					sentry.CaptureException(err)
-				}
-				// No record found, skip
-				log.Println("[captcha] no record found, lanjut")
-				tx.Rollback()
-				return
-			}
-
-			// If captcha match, delete from record
-			if len(m) == 5 && captcha.Code == m {
-				// Delete captcha from DB
-				if err := tx.Unscoped().Delete(&captcha).Error; err != nil {
-					log.Println("[captcha] error remove captcha code from DB")
-					sentry.CaptureException(err)
-					tx.Rollback()
-					return
-				}
-
-				// Verified Message
-				text := fmt.Sprintf(
-					"Verifikasi berhasil [%s](tg://user?id=%d) 👍\nSekarang kamu bisa mengirim pesan 🤗",
-					update.Message.From.FirstName,
-					update.Message.From.ID,
-				)
-				msg := tg.NewMessage(update.Message.Chat.ID, text)
-				msg.ParseMode = "markdown"
-
-				log.Printf("[captcha:%d] Captcha resolved", update.Message.From.ID)
-
-				r, err := bot.Send(msg)
-				if err != nil {
-					sentry.CaptureException(err)
-					log.Printf("[captcha:%d] unable to send verified message", update.Message.From.ID)
-					tx.Rollback()
-					return
-				}
-
-				// Delete code
-				if _, err := bot.DeleteMessage(tg.DeleteMessageConfig{
-					ChatID:    update.Message.Chat.ID,
-					MessageID: update.Message.MessageID,
-				}); err != nil {
-					log.Println("[captcha] Error delete code message")
-					sentry.CaptureException(err)
-				}
-
-				// Delete verfied message after 3sec
-				go func() {
-					log.Printf("[captcha] Deleting message %d in 3 seconds...", r.Chat.ID)
-					time.Sleep(3 * time.Second)
-
-					// Delete Pong after a few second
-					pong := tg.DeleteMessageConfig{
-						ChatID:    r.Chat.ID,
-						MessageID: r.MessageID,
-					}
-					bot.DeleteMessage(pong)
-				}()
-			} else {
-				// If has captcha & message not match with code, delete message
-				vm := tg.NewDeleteMessage(update.Message.Chat.ID, update.Message.MessageID)
-				if _, err := app.Bot.Send(vm); err != nil {
-					log.Println("[captcha] Error delete unverified user message", err)
-				} else {
-					log.Printf("[captcha:%d] Message deleted from unverified user!", update.Message.From.ID)
-				}
-			}
-			tx.Commit()
 
 		}
 
