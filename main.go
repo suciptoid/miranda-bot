@@ -288,7 +288,7 @@ func (app *App) handle(update tg.Update) {
 				if err != nil {
 					log.Printf("[leavechat] Error Leave chat from unauthorized group %v", update.Message.Chat.ID)
 				}
-			} else if member.IsBot && member.UserName != app.Config.BotUsername {
+			} else if member.IsBot && member.UserName != bot.Self.UserName {
 				// Kick other bot
 				_, err := bot.KickChatMember(tg.KickChatMemberConfig{
 					ChatMemberConfig: tg.ChatMemberConfig{
@@ -301,6 +301,44 @@ func (app *App) handle(update tg.Update) {
 					log.Printf("[kickbot] Error kick bot @%s :%v", member.UserName, err)
 				}
 			} else {
+				// Check CAS Banned
+				if checkBanned(member.ID) {
+					// Kick Spammer
+					_, err := bot.KickChatMember(tg.KickChatMemberConfig{
+						ChatMemberConfig: tg.ChatMemberConfig{
+							ChatID: update.Message.Chat.ID,
+							UserID: member.ID,
+						},
+					})
+					log.Printf("[cas] Kick spammer %d", member.ID)
+					if err != nil {
+						log.Printf("[cas] Error kick spammer %d :%v", member.ID, err)
+					}
+
+					// Send Notice
+					msg := tg.NewMessage(
+						update.Message.Chat.ID,
+						fmt.Sprintf(
+							"Member *%s* (%d) dikeluarkan karena terindikasi Spammer.\n\n[Check](https://cas.chat/query?u=%d)",
+							member.FirstName,
+							member.ID,
+							member.ID,
+						),
+					)
+					msg.ParseMode = "markdown"
+					notice, _ := bot.Send(msg)
+
+					if notice.MessageID > 0 {
+						// Delete after 3s
+						go func() {
+							time.Sleep(5 * time.Second)
+							log.Println("[cas] Deleting cas notice message after 3 second...")
+							bot.DeleteMessage(tg.NewDeleteMessage(update.Message.Chat.ID, notice.MessageID))
+						}()
+					}
+					return
+				}
+
 				// Send welcome message except itself
 				if member.UserName != app.Config.BotUsername {
 					tx := app.DB.Begin()
