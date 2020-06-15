@@ -400,11 +400,13 @@ func (app *App) handle(update tg.Update) {
 					// Kick if timeout in 5 min
 					go func() {
 						time.Sleep(5 * time.Minute)
-						app.kickUnverified(member.ID, update, false)
+						kicked := app.kickUnverified(member.ID, update, false)
 						// Delete welcome / captcha message
-						if _, err := bot.DeleteMessage(tg.NewDeleteMessage(update.Message.Chat.ID, welcome.MessageID)); err != nil {
-							sentry.CaptureException(err)
-							log.Println("[timeout] unable to delete welcome message")
+						if kicked {
+							if _, err := bot.DeleteMessage(tg.NewDeleteMessage(update.Message.Chat.ID, welcome.MessageID)); err != nil {
+								sentry.CaptureException(err)
+								log.Println("[timeout] unable to delete welcome message")
+							}
 						}
 					}()
 
@@ -440,15 +442,27 @@ func (app *App) handle(update tg.Update) {
 	case update.Message.Sticker != nil:
 		//TODO: Handle Sticker Message
 		log.Println("New Sticker Message")
-
+	case update.Message.LeftChatMember != nil:
+		log.Printf("[left] member left: %s", update.Message.LeftChatMember.FirstName)
 	default:
 		log.Printf("[update] update handler tidak diketahui %v", update)
 	}
 
 }
 
-func (app *App) kickUnverified(id int, update tg.Update, permanent bool) {
+func (app *App) kickUnverified(id int, update tg.Update, permanent bool) bool {
 	bot := app.Bot
+
+	var captcha models.UserCaptcha
+	if err := app.DB.Where("user_id = ?", id).First(&captcha).Error; err != nil {
+		if !gorm.IsRecordNotFoundError(err) {
+			sentry.CaptureException(err)
+		}
+
+		// Skip kick if no captcha record on db
+		log.Printf("[softkick] skip kick %d, captcha already resolved", id)
+		return false
+	}
 
 	// Kick Member
 	if _, err := bot.KickChatMember(tg.KickChatMemberConfig{
@@ -497,4 +511,6 @@ func (app *App) kickUnverified(id int, update tg.Update, permanent bool) {
 			bot.DeleteMessage(tg.NewDeleteMessage(update.Message.Chat.ID, notice.MessageID))
 		}()
 	}
+
+	return true
 }
