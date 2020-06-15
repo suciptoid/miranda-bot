@@ -370,11 +370,12 @@ func (app *App) handle(update tg.Update) {
 					}
 
 					text := fmt.Sprintf(
-						"Selamat datang [%s](tg://user?id=%d)\n\nSilahkan balas dengan pesan `%s` untuk memastikan kamu bukan bot.",
+						"Selamat datang [%s](tg://user?id=%d) 👋\n\nSilahkan balas dengan pesan `%s` dalam waktu 5 menit untuk memastikan kamu bukan bot.",
 						member.FirstName,
 						member.ID,
 						captcha.Code,
 					)
+
 					msg := tg.NewMessage(update.Message.Chat.ID, text)
 					msg.ParseMode = "markdown"
 
@@ -395,6 +396,17 @@ func (app *App) handle(update tg.Update) {
 
 					// Commit transaction
 					tx.Commit()
+
+					// Kick if timeout in 5 min
+					go func() {
+						time.Sleep(5 * time.Minute)
+						app.kickUnverified(member.ID, update, false)
+						// Delete welcome / captcha message
+						if _, err := bot.DeleteMessage(tg.NewDeleteMessage(update.Message.Chat.ID, welcome.MessageID)); err != nil {
+							sentry.CaptureException(err)
+							log.Println("[timeout] unable to delete welcome message")
+						}
+					}()
 
 				}
 			}
@@ -433,4 +445,56 @@ func (app *App) handle(update tg.Update) {
 		log.Printf("[update] update handler tidak diketahui %v", update)
 	}
 
+}
+
+func (app *App) kickUnverified(id int, update tg.Update, permanent bool) {
+	bot := app.Bot
+
+	// Kick Member
+	if _, err := bot.KickChatMember(tg.KickChatMemberConfig{
+		ChatMemberConfig: tg.ChatMemberConfig{
+			ChatID: update.Message.Chat.ID,
+			UserID: id,
+		},
+	}); err != nil {
+		log.Printf("[softkick] Error kick spammer %d :%v", id, err)
+	}
+
+	// Soft Kick (Can Join Again)
+	if !permanent {
+		if _, err := bot.UnbanChatMember(tg.ChatMemberConfig{
+			ChatID: update.Message.Chat.ID,
+			UserID: id,
+		}); err != nil {
+			log.Println("[softkick] unable unband chat member")
+			sentry.CaptureException(err)
+		} else {
+			log.Printf("[softkick] unband user (%d) so they can join again (if real human)", id)
+		}
+	}
+
+	// Delete captcha record
+	if err := app.DB.Delete(models.UserCaptcha{}, "user_id = ?", id).Error; err != nil {
+		log.Printf("[softkick] delete captcha (%d) so they can join again (if real human)", id)
+	}
+
+	// Send Notice
+	msg := tg.NewMessage(
+		update.Message.Chat.ID,
+		fmt.Sprintf(
+			"⏱ User %d dikeluarkan karena tidak menjawab captcha lebih dari 5 menit.",
+			id,
+		),
+	)
+	msg.ParseMode = "markdown"
+	notice, _ := bot.Send(msg)
+
+	if notice.MessageID > 0 {
+		// Delete after 3s
+		go func() {
+			time.Sleep(3 * time.Second)
+			log.Println("[softkick] Deleting cas notice message after 3 second...")
+			bot.DeleteMessage(tg.NewDeleteMessage(update.Message.Chat.ID, notice.MessageID))
+		}()
+	}
 }
