@@ -269,11 +269,13 @@ func (app *App) handle(update tg.Update) {
 
 	// New Member Join
 	case update.Message.NewChatMembers != nil:
-		//TODO: Handle welcome message
-		// log.Println("New Chat Members")
 
 		members := update.Message.NewChatMembers
-		// firstMember := (*members)[0]
+		// Cleanup join message
+		if _, err := bot.DeleteMessage(tg.NewDeleteMessage(update.Message.Chat.ID, update.Message.MessageID)); err != nil {
+			sentry.CaptureException(err)
+			log.Println("[cleanup] unable delete join message")
+		}
 
 		// var member tg.User
 		for _, member := range *members {
