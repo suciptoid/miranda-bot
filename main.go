@@ -103,7 +103,7 @@ func main() {
 
 	r := chi.NewRouter()
 
-	r.Use(middleware.Logger)
+	// r.Use(middleware.Logger)
 	r.Use(middleware.Recoverer)
 
 	r.Post("/webhook", func(w http.ResponseWriter, r *http.Request) {
