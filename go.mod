@@ -8,7 +8,7 @@ require (
 	github.com/go-chi/chi v4.1.2+incompatible
 	github.com/go-sql-driver/mysql v1.5.0 // indirect
 	github.com/go-telegram-bot-api/telegram-bot-api v4.6.4+incompatible // indirect
-	github.com/jinzhu/gorm v1.9.14
+	github.com/jinzhu/gorm v1.9.15
 	github.com/jinzhu/now v1.1.1 // indirect
 	github.com/joho/godotenv v1.3.0
 	github.com/lib/pq v1.7.0 // indirect
