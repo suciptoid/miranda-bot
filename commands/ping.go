@@ -1,7 +1,6 @@
 package commands
 
 import (
-	"fmt"
 	"log"
 	"time"
 
@@ -11,11 +10,6 @@ import (
 // Ping send pong
 func (c Command) Ping() {
 	log.Println("[command] Call ping!")
-
-	dbPing := true
-	if err := c.DB.DB().Ping(); err != nil {
-		dbPing = false
-	}
 
 	msg := tg.NewMessage(c.Message.Chat.ID, "Pong ✨")
 	msg.ParseMode = "markdown"
