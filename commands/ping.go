@@ -17,7 +17,7 @@ func (c Command) Ping() {
 		dbPing = false
 	}
 
-	msg := tg.NewMessage(c.Message.Chat.ID, fmt.Sprintf("Pong ✨\n\ndb ok: %v", dbPing))
+	msg := tg.NewMessage(c.Message.Chat.ID, "Pong ✨")
 	msg.ParseMode = "markdown"
 
 	r, err := c.Bot.Send(msg)
