@@ -1,6 +1,7 @@
 module miranda-bot
 
-go 1.14
+// +heroku goVersion go1.16
+go 1.16
 
 require (
 	github.com/denisenkom/go-mssqldb v0.11.0 // indirect
