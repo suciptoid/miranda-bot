@@ -433,8 +433,6 @@ func (app *App) handle(update tg.Update) {
 				Config:  app.Config,
 			}
 			c.Handle(cs)
-		} else {
-
 		}
 
 	case update.Message.Photo != nil:
@@ -494,12 +492,24 @@ func (app *App) kickUnverified(id int, update tg.Update, permanent bool) bool {
 		log.Printf("[softkick] delete captcha (%d) so they can join again (if real human)", id)
 	}
 
+	kicked := ""
+	// Find member from update
+	for _, member := range *update.Message.NewChatMembers {
+		if member.ID == id {
+			kicked = member.FirstName
+		}
+	}
+
+	if kicked == "" {
+		kicked = fmt.Sprintf("%d", id)
+	}
+
 	// Send Notice
 	msg := tg.NewMessage(
 		update.Message.Chat.ID,
 		fmt.Sprintf(
-			"⏱ User %d dikeluarkan karena tidak menjawab captcha lebih dari 5 menit.",
-			id,
+			"🤦🏻 User %s dikeluarkan karena tidak menjawab captcha lebih dari 5 menit.",
+			kicked,
 		),
 	)
 	msg.ParseMode = "markdown"
