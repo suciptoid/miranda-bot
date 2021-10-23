@@ -433,8 +433,6 @@ func (app *App) handle(update tg.Update) {
 				Config:  app.Config,
 			}
 			c.Handle(cs)
-		} else {
-
 		}
 
 	case update.Message.Photo != nil:
