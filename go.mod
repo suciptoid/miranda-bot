@@ -4,7 +4,7 @@ go 1.14
 
 require (
 	github.com/denisenkom/go-mssqldb v0.0.0-20200428022330-06a60b6afbbc // indirect
-	github.com/getsentry/sentry-go v0.9.0
+	github.com/getsentry/sentry-go v0.11.0
 	github.com/go-chi/chi v4.1.2+incompatible
 	github.com/go-telegram-bot-api/telegram-bot-api v4.6.4+incompatible // indirect
 	github.com/jinzhu/gorm v1.9.16
