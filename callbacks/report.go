@@ -45,7 +45,7 @@ func (cb *Callback) Report() {
 
 		// Create user voter to db if not exists
 		voter = models.User{
-			TelegramID: int64(cq.From.ID),
+			TelegramID: cq.From.ID,
 			Name:       fmt.Sprintf("%s %s", cq.From.FirstName, cq.From.LastName),
 			Username:   cq.From.UserName,
 		}
