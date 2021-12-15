@@ -150,7 +150,6 @@ func (app *App) handle(update tg.Update) {
 
 	if update.CallbackQuery != nil {
 
-		// TODO: Migrate to latest bot api
 		log.Println("[callback] handle callback")
 		cb := callbacks.Callback{
 			Bot:           bot,
