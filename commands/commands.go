@@ -7,7 +7,7 @@ import (
 	"github.com/getsentry/sentry-go"
 
 	"github.com/jinzhu/gorm"
-	tg "gopkg.in/telegram-bot-api.v4"
+	tg "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
 
 // Command ...

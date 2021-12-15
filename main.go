@@ -23,7 +23,7 @@ import (
 	_ "github.com/jinzhu/gorm/dialects/postgres"
 	"github.com/joho/godotenv"
 
-	tg "gopkg.in/telegram-bot-api.v4"
+	tg "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
 
 // App main app struct
@@ -119,9 +119,16 @@ func main() {
 	})
 
 	log.Println("Set mode webhook to", config.WebhookURL)
-	if _, err := bot.SetWebhook(tg.NewWebhook(config.WebhookURL)); err != nil {
+	if wh, err := tg.NewWebhook(config.WebhookURL); err != nil {
 		sentry.CaptureException(err)
-		log.Fatal("Error setting webhook", err)
+
+		log.Fatal("error")
+	} else {
+		_, err := bot.Request(wh)
+		if err != nil {
+			sentry.CaptureException(err)
+			log.Fatal("Error setting webhook URL")
+		}
 	}
 
 	info, err := bot.GetWebhookInfo()
@@ -143,6 +150,7 @@ func (app *App) handle(update tg.Update) {
 
 	if update.CallbackQuery != nil {
 
+		// TODO: Migrate to latest bot api
 		log.Println("[callback] handle callback")
 		cb := callbacks.Callback{
 			Bot:           bot,
@@ -218,7 +226,7 @@ func (app *App) handle(update tg.Update) {
 				}
 
 				// Delete code
-				if _, err := bot.DeleteMessage(tg.DeleteMessageConfig{
+				if _, err := bot.Request(tg.DeleteMessageConfig{
 					ChatID:    update.Message.Chat.ID,
 					MessageID: update.Message.MessageID,
 				}); err != nil {
@@ -228,7 +236,7 @@ func (app *App) handle(update tg.Update) {
 
 				// Delete Welcome
 				if captcha.MessageID > 0 {
-					if _, err := bot.DeleteMessage(tg.DeleteMessageConfig{
+					if _, err := bot.Request(tg.DeleteMessageConfig{
 						ChatID:    update.Message.Chat.ID,
 						MessageID: captcha.MessageID,
 					}); err != nil {
@@ -247,7 +255,7 @@ func (app *App) handle(update tg.Update) {
 						ChatID:    r.Chat.ID,
 						MessageID: r.MessageID,
 					}
-					bot.DeleteMessage(pong)
+					bot.Request(pong)
 				}()
 			} else {
 				// If has captcha & message not match with code, delete message
@@ -272,19 +280,22 @@ func (app *App) handle(update tg.Update) {
 
 		members := update.Message.NewChatMembers
 		// Cleanup join message
-		if _, err := bot.DeleteMessage(tg.NewDeleteMessage(update.Message.Chat.ID, update.Message.MessageID)); err != nil {
+		if _, err := bot.Request(tg.NewDeleteMessage(update.Message.Chat.ID, update.Message.MessageID)); err != nil {
 			sentry.CaptureException(err)
 			log.Println("[cleanup] unable delete join message")
 		}
 
 		// var member tg.User
-		for _, member := range *members {
+		for _, member := range members {
 
 			if member.UserName == app.Config.BotUsername && update.Message.Chat.ID != app.Config.GroupID {
 				// Left Chat on unregistered group
-				_, err := bot.LeaveChat(tg.ChatConfig{
+				_, err := bot.Request(tg.LeaveChatConfig{
 					ChatID: update.Message.Chat.ID,
 				})
+				// _, err := bot.LeaveChat(tg.ChatConfig{
+				// 	ChatID: update.Message.Chat.ID,
+				// })
 
 				log.Printf("[leavechat] Leave chat from unauthorized group %v", update.Message.Chat.ID)
 				if err != nil {
@@ -292,7 +303,7 @@ func (app *App) handle(update tg.Update) {
 				}
 			} else if member.IsBot && member.UserName != bot.Self.UserName {
 				// Kick other bot
-				_, err := bot.KickChatMember(tg.KickChatMemberConfig{
+				_, err := bot.Request(tg.KickChatMemberConfig{
 					ChatMemberConfig: tg.ChatMemberConfig{
 						ChatID: update.Message.Chat.ID,
 						UserID: member.ID,
@@ -306,7 +317,7 @@ func (app *App) handle(update tg.Update) {
 				// Check CAS Banned
 				if checkBanned(member.ID) {
 					// Kick Spammer
-					_, err := bot.KickChatMember(tg.KickChatMemberConfig{
+					_, err := bot.Request(tg.KickChatMemberConfig{
 						ChatMemberConfig: tg.ChatMemberConfig{
 							ChatID: update.Message.Chat.ID,
 							UserID: member.ID,
@@ -335,7 +346,7 @@ func (app *App) handle(update tg.Update) {
 						go func() {
 							time.Sleep(5 * time.Second)
 							log.Println("[cas] Deleting cas notice message after 3 second...")
-							bot.DeleteMessage(tg.NewDeleteMessage(update.Message.Chat.ID, notice.MessageID))
+							bot.Request(tg.NewDeleteMessage(update.Message.Chat.ID, notice.MessageID))
 						}()
 					}
 					return
@@ -405,7 +416,7 @@ func (app *App) handle(update tg.Update) {
 						kicked := app.kickUnverified(member.ID, update, false)
 						// Delete welcome / captcha message
 						if kicked {
-							if _, err := bot.DeleteMessage(tg.NewDeleteMessage(update.Message.Chat.ID, welcome.MessageID)); err != nil {
+							if _, err := bot.Request(tg.NewDeleteMessage(update.Message.Chat.ID, welcome.MessageID)); err != nil {
 								sentry.CaptureException(err)
 								log.Println("[timeout] unable to delete welcome message")
 							}
@@ -450,7 +461,7 @@ func (app *App) handle(update tg.Update) {
 
 }
 
-func (app *App) kickUnverified(id int, update tg.Update, permanent bool) bool {
+func (app *App) kickUnverified(id int64, update tg.Update, permanent bool) bool {
 	bot := app.Bot
 
 	var captcha models.UserCaptcha
@@ -465,7 +476,7 @@ func (app *App) kickUnverified(id int, update tg.Update, permanent bool) bool {
 	}
 
 	// Kick Member
-	if _, err := bot.KickChatMember(tg.KickChatMemberConfig{
+	if _, err := bot.Request(tg.KickChatMemberConfig{
 		ChatMemberConfig: tg.ChatMemberConfig{
 			ChatID: update.Message.Chat.ID,
 			UserID: id,
@@ -476,9 +487,11 @@ func (app *App) kickUnverified(id int, update tg.Update, permanent bool) bool {
 
 	// Soft Kick (Can Join Again)
 	if !permanent {
-		if _, err := bot.UnbanChatMember(tg.ChatMemberConfig{
-			ChatID: update.Message.Chat.ID,
-			UserID: id,
+		if _, err := bot.Request(tg.UnbanChatMemberConfig{
+			ChatMemberConfig: tg.ChatMemberConfig{
+				ChatID: update.Message.Chat.ID,
+				UserID: id,
+			},
 		}); err != nil {
 			log.Println("[softkick] unable unband chat member")
 			sentry.CaptureException(err)
@@ -494,7 +507,7 @@ func (app *App) kickUnverified(id int, update tg.Update, permanent bool) bool {
 
 	kicked := ""
 	// Find member from update
-	for _, member := range *update.Message.NewChatMembers {
+	for _, member := range update.Message.NewChatMembers {
 		if member.ID == id {
 			kicked = member.FirstName
 		}
@@ -520,7 +533,7 @@ func (app *App) kickUnverified(id int, update tg.Update, permanent bool) bool {
 		go func() {
 			time.Sleep(3 * time.Second)
 			log.Println("[softkick] Deleting cas notice message after 3 second...")
-			bot.DeleteMessage(tg.NewDeleteMessage(update.Message.Chat.ID, notice.MessageID))
+			bot.Request(tg.NewDeleteMessage(update.Message.Chat.ID, notice.MessageID))
 		}()
 	}
 

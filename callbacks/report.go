@@ -6,7 +6,7 @@ import (
 	"miranda-bot/models"
 	"strings"
 
-	tg "gopkg.in/telegram-bot-api.v4"
+	tg "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
 
 // Report ....
@@ -45,7 +45,7 @@ func (cb *Callback) Report() {
 
 		// Create user voter to db if not exists
 		voter = models.User{
-			TelegramID: cq.From.ID,
+			TelegramID: int64(cq.From.ID),
 			Name:       fmt.Sprintf("%s %s", cq.From.FirstName, cq.From.LastName),
 			Username:   cq.From.UserName,
 		}
@@ -75,7 +75,7 @@ func (cb *Callback) Report() {
 		log.Println("[vote] Report data not found")
 		tx.Rollback()
 
-		cb.Bot.AnswerCallbackQuery(tg.NewCallback(cq.ID, "Data report tidak ditemukan"))
+		cb.Bot.Request(tg.NewCallback(cq.ID, "Data report tidak ditemukan"))
 		return
 	}
 
@@ -111,7 +111,7 @@ func (cb *Callback) Report() {
 			report.VoteDown = report.VoteDown + votingPoint
 		}
 
-		cb.Bot.AnswerCallbackQuery(tg.NewCallback(cq.ID, fmt.Sprintf("Kamu telah memberikan %s untuk pooling ini", voteState)))
+		cb.Bot.Request(tg.NewCallback(cq.ID, fmt.Sprintf("Kamu telah memberikan %s untuk pooling ini", voteState)))
 
 	} else {
 		// TODO: Update Vote if changed
@@ -133,9 +133,9 @@ func (cb *Callback) Report() {
 
 		// Change Vote Count
 		if ur.Vote != voteValue {
-			cb.Bot.AnswerCallbackQuery(tg.NewCallback(cq.ID, fmt.Sprintf("Kamu merubah vote dari %s menjadi %s untuk pooling ini", existingVote, voteState)))
+			cb.Bot.Request(tg.NewCallback(cq.ID, fmt.Sprintf("Kamu merubah vote dari %s menjadi %s untuk pooling ini", existingVote, voteState)))
 		} else {
-			cb.Bot.AnswerCallbackQuery(tg.NewCallback(cq.ID, fmt.Sprintf("Kamu sudah memberi vote %s untuk pooling ini", existingVote)))
+			cb.Bot.Request(tg.NewCallback(cq.ID, fmt.Sprintf("Kamu sudah memberi vote %s untuk pooling ini", existingVote)))
 		}
 
 		// Update existing vote

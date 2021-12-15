@@ -7,7 +7,7 @@ type Report struct {
 	gorm.Model
 
 	MessageID  int `gorm:"unique_index"` // Same message can't be reported more than once
-	ReporterID int
+	ReporterID int64
 	VoteUp     int `gorm:"default:'0'"`
 	VoteDown   int `gorm:"default:'0'"`
 	// Users      []User `gorm:"many2many:report_users"`

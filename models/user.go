@@ -6,7 +6,7 @@ import "github.com/jinzhu/gorm"
 type User struct {
 	gorm.Model
 
-	TelegramID int    `gorm:"unique_index"`
+	TelegramID int64  `gorm:"unique_index"`
 	Name       string `gorm:"size:255"`
 	Username   string `gorm:"size:255;unique_index"`
 	Point      int    `gorm:"default:'10'"`
