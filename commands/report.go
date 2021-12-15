@@ -5,7 +5,7 @@ import (
 	"log"
 	"miranda-bot/models"
 
-	tg "gopkg.in/telegram-bot-api.v4"
+	tg "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
 
 // Report ...

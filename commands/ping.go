@@ -4,7 +4,7 @@ import (
 	"log"
 	"time"
 
-	tg "gopkg.in/telegram-bot-api.v4"
+	tg "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
 
 // Ping send pong
@@ -27,7 +27,7 @@ func (c Command) Ping() {
 		ChatID:    c.Message.Chat.ID,
 		MessageID: c.Message.MessageID,
 	}
-	c.Bot.DeleteMessage(ping)
+	c.Bot.Request(ping)
 
 	go func() {
 		log.Printf("Deleting message %d in 3 seconds...", r.Chat.ID)
@@ -38,6 +38,6 @@ func (c Command) Ping() {
 			ChatID:    r.Chat.ID,
 			MessageID: r.MessageID,
 		}
-		c.Bot.DeleteMessage(pong)
+		c.Bot.Request(pong)
 	}()
 }

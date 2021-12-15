@@ -4,7 +4,7 @@ import (
 	"log"
 	"time"
 
-	tg "gopkg.in/telegram-bot-api.v4"
+	tg "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
 
 // Rules send rules
@@ -30,14 +30,14 @@ func (c Command) Rules() {
 			ChatID:    c.Message.Chat.ID,
 			MessageID: c.Message.MessageID,
 		}
-		c.Bot.DeleteMessage(rules)
+		c.Bot.Request(rules)
 
 		// Delete Rules after a few second
 		reply := tg.DeleteMessageConfig{
 			ChatID:    r.Chat.ID,
 			MessageID: r.MessageID,
 		}
-		c.Bot.DeleteMessage(reply)
+		c.Bot.Request(reply)
 	}()
 
 }

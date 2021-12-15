@@ -6,8 +6,8 @@ import (
 	"miranda-bot/models"
 
 	"github.com/getsentry/sentry-go"
+	tg "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"github.com/jinzhu/gorm"
-	tg "gopkg.in/telegram-bot-api.v4"
 )
 
 // AdminList ...
