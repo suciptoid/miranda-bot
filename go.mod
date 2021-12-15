@@ -11,6 +11,6 @@ require (
 	github.com/jinzhu/gorm v1.9.16
 	github.com/jinzhu/now v1.1.4 // indirect
 	github.com/joho/godotenv v1.4.0
-	github.com/lib/pq v1.10.3 // indirect
+	github.com/lib/pq v1.10.4 // indirect
 	github.com/mattn/go-sqlite3 v2.0.3+incompatible // indirect
 )
