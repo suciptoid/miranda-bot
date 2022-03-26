@@ -5,7 +5,7 @@ go 1.16
 
 require (
 	github.com/denisenkom/go-mssqldb v0.11.0 // indirect
-	github.com/getsentry/sentry-go v0.11.0
+	github.com/getsentry/sentry-go v0.13.0
 	github.com/go-chi/chi/v5 v5.0.7
 	github.com/go-telegram-bot-api/telegram-bot-api/v5 v5.5.1
 	github.com/jinzhu/gorm v1.9.16
