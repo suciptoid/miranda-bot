@@ -3,7 +3,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"log"
 	"miranda-bot/callbacks"
 	"miranda-bot/config"
@@ -107,7 +107,7 @@ func main() {
 	r.Use(middleware.Recoverer)
 
 	r.Post("/webhook", func(w http.ResponseWriter, r *http.Request) {
-		bytes, _ := ioutil.ReadAll(r.Body)
+		bytes, _ := io.ReadAll(r.Body)
 
 		var update tg.Update
 		if err := json.Unmarshal(bytes, &update); err != nil {
@@ -272,6 +272,41 @@ func (app *App) handle(update tg.Update) {
 		tx.Commit()
 	}
 
+	// Channel Filter
+	if update.Message.From.IsBot {
+		// Delete message
+		if _, err := bot.Request(tg.NewDeleteMessage(update.Message.Chat.ID, update.Message.MessageID)); err != nil {
+			sentry.CaptureException(err)
+			log.Println("[cleanup] unable delete bot message")
+		}
+
+		// Warn user to use main account
+		if update.Message.SenderChat != nil && update.Message.SenderChat.Type == "channel" {
+			log.Println("[channel] new message from channel")
+			member := update.Message.SenderChat
+
+			msg := tg.NewMessage(
+				update.Message.Chat.ID,
+				fmt.Sprintf(
+					"Hai @%s\nDemi kenyamanan bersama, mengirim pesan menggunakan akun channel tidak diperbolehkan. Silakan menggunakan akun personal.",
+					member.UserName,
+				),
+			)
+			msg.ParseMode = "markdown"
+			notice, _ := bot.Send(msg)
+
+			if notice.MessageID > 0 {
+				// Delete after 3s
+				go func() {
+					time.Sleep(10 * time.Second)
+					log.Println("[softkick] Deleting channel notice message after 10 second...")
+					bot.Request(tg.NewDeleteMessage(update.Message.Chat.ID, notice.MessageID))
+				}()
+			}
+
+		}
+	}
+
 	switch {
 
 	// New Member Join
@@ -412,7 +447,7 @@ func (app *App) handle(update tg.Update) {
 					// Kick if timeout in 5 min
 					go func() {
 						time.Sleep(5 * time.Minute)
-						kicked := app.kickUnverified(member.ID, update, false)
+						kicked := app.kickUnverified(member.ID, update)
 						// Delete welcome / captcha message
 						if kicked {
 							if _, err := bot.Request(tg.NewDeleteMessage(update.Message.Chat.ID, welcome.MessageID)); err != nil {
@@ -460,7 +495,7 @@ func (app *App) handle(update tg.Update) {
 
 }
 
-func (app *App) kickUnverified(id int64, update tg.Update, permanent bool) bool {
+func (app *App) kickUnverified(id int64, update tg.Update) bool {
 	bot := app.Bot
 
 	var captcha models.UserCaptcha
@@ -474,29 +509,16 @@ func (app *App) kickUnverified(id int64, update tg.Update, permanent bool) bool 
 		return false
 	}
 
-	// Kick Member
-	if _, err := bot.Request(tg.KickChatMemberConfig{
+	// Ban chat member, can rejoin after 35 second.
+	// https://core.telegram.org/bots/api#banchatmember
+	if _, err := bot.Request(tg.BanChatMemberConfig{
 		ChatMemberConfig: tg.ChatMemberConfig{
 			ChatID: update.Message.Chat.ID,
 			UserID: id,
 		},
+		UntilDate: time.Now().Add(35 * time.Second).Unix(),
 	}); err != nil {
 		log.Printf("[softkick] Error kick spammer %d :%v", id, err)
-	}
-
-	// Soft Kick (Can Join Again)
-	if !permanent {
-		if _, err := bot.Request(tg.UnbanChatMemberConfig{
-			ChatMemberConfig: tg.ChatMemberConfig{
-				ChatID: update.Message.Chat.ID,
-				UserID: id,
-			},
-		}); err != nil {
-			log.Println("[softkick] unable unband chat member")
-			sentry.CaptureException(err)
-		} else {
-			log.Printf("[softkick] unband user (%d) so they can join again (if real human)", id)
-		}
 	}
 
 	// Delete captcha record
