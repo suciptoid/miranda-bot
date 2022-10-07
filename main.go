@@ -142,7 +142,10 @@ func main() {
 	}
 
 	log.Println("Running on port:", config.Port)
-	http.ListenAndServe(":"+config.Port, r)
+	err = http.ListenAndServe(":"+config.Port, r)
+	if err != nil {
+		log.Fatal("ListenAndServe: ", err)
+	}
 }
 
 func (app *App) handle(update tg.Update) {
@@ -244,7 +247,7 @@ func (app *App) handle(update tg.Update) {
 					}
 				}
 
-				// Delete verfied message after 3sec
+				// Delete verified message after 3sec
 				go func() {
 					log.Printf("[captcha] Deleting message %d in 3 seconds...", r.Chat.ID)
 					time.Sleep(3 * time.Second)
@@ -257,7 +260,7 @@ func (app *App) handle(update tg.Update) {
 					bot.Request(pong)
 				}()
 			} else {
-				// If has captcha & message not match with code, delete message
+				// If it has captcha & message not match with code, delete message
 				vm := tg.NewDeleteMessage(update.Message.Chat.ID, update.Message.MessageID)
 				if _, err := app.Bot.Send(vm); err != nil {
 					log.Println("[captcha] Error delete unverified user message", err)

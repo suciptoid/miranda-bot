@@ -12,7 +12,7 @@ import (
 
 // AdminList ...
 func (c Command) AdminList() {
-	var users = []models.User{}
+	var users []models.User
 
 	if err := c.DB.Where("role_id IN (?)", []int{1, 2}).Order("point desc").Find(&users).Error; err != nil {
 		if !gorm.IsRecordNotFoundError(err) {

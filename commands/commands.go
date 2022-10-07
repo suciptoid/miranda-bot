@@ -6,8 +6,8 @@ import (
 
 	"github.com/getsentry/sentry-go"
 
-	"github.com/jinzhu/gorm"
 	tg "github.com/go-telegram-bot-api/telegram-bot-api/v5"
+	"github.com/jinzhu/gorm"
 )
 
 // Command ...
