@@ -1,0 +1,6 @@
+# flyctl launch added from .gitignore
+**/vendor
+**/.env
+**/.goreload
+**/miranda-bot
+fly.toml

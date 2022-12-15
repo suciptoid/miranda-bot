@@ -55,7 +55,6 @@ func main() {
 	groupID, _ := strconv.ParseInt(os.Getenv("GROUP_ID"), 10, 64)
 	config := &config.Configuration{
 		Port:        os.Getenv("PORT"),
-		UpdateMode:  os.Getenv("UPDATE_MODE"),
 		Token:       os.Getenv("TOKEN"),
 		WebhookURL:  os.Getenv("WEBHOOK_URL"),
 		DBUrl:       os.Getenv("DATABASE_URL"),
