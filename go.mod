@@ -4,7 +4,7 @@ go 1.19
 
 require (
 	github.com/getsentry/sentry-go v0.16.0
-	github.com/go-chi/chi/v5 v5.0.8
+	github.com/go-chi/chi/v5 v5.1.0
 	github.com/go-telegram-bot-api/telegram-bot-api/v5 v5.5.1
 	github.com/jinzhu/gorm v1.9.16
 	github.com/joho/godotenv v1.4.0
