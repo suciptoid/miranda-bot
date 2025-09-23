@@ -26,5 +26,7 @@ func (cb *Callback) Handle(mode string) {
 	switch mode {
 	case "report":
 		cb.Report()
+	case "ban":
+		cb.Ban()
 	}
 }
