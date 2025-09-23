@@ -39,6 +39,13 @@ func (c *Command) Handle(cs string) {
 			log.Println("[report] unable call command from outside group")
 		}
 
+	case "ban", "b":
+		if c.IsFromGroup() {
+			c.Ban()
+		} else {
+			log.Println("[ban] unable call command from outside group")
+		}
+
 	case "rules":
 		if c.IsFromGroup() {
 			c.Rules()

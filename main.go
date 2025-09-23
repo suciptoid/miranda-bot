@@ -87,6 +87,8 @@ func main() {
 		&models.Report{},
 		&models.UserReport{},
 		&models.UserCaptcha{},
+		&models.Ban{},
+		&models.UserBan{},
 	)
 
 	app := App{
