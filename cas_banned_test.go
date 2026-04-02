@@ -1,17 +1,53 @@
 package main
 
-import "testing"
+import (
+	"fmt"
+	"net/http"
+	"net/http/httptest"
+	"testing"
+)
 
-// User chip
-func TestUserIsNotBanned(t *testing.T) {
-	if checkBanned(1051416075) {
-		t.Error("User should not banned")
+func TestCheckBanned(t *testing.T) {
+	tests := []struct {
+		name     string
+		userID   int64
+		response string
+		expected bool
+	}{
+		{
+			name:     "User is banned",
+			userID:   12345,
+			response: `{"ok": true}`,
+			expected: true,
+		},
+		{
+			name:     "User is not banned",
+			userID:   67890,
+			response: `{"ok": false}`,
+			expected: false,
+		},
 	}
-}
 
-// https://cas.chat/query?u=1089155882
-func TestUserIsCasBanned(t *testing.T) {
-	if !checkBanned(1089155882) {
-		t.Error("User should banned")
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				expectedPath := fmt.Sprintf("/?user_id=%d", tt.userID)
+				if r.URL.String() != expectedPath {
+					t.Errorf("Expected path %s, got %s", expectedPath, r.URL.String())
+				}
+				w.WriteHeader(http.StatusOK)
+				w.Write([]byte(tt.response))
+			}))
+			defer server.Close()
+
+			oldURL := casBaseURL
+			casBaseURL = server.URL
+			defer func() { casBaseURL = oldURL }()
+
+			result := checkBanned(tt.userID)
+			if result != tt.expected {
+				t.Errorf("Expected %v, got %v", tt.expected, result)
+			}
+		})
 	}
 }

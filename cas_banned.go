@@ -8,10 +8,12 @@ import (
 	"net/http"
 )
 
+var casBaseURL = "https://api.cas.chat/check"
+
 func checkBanned(id int64) bool {
-	resp, err := http.Get(fmt.Sprintf("https://api.cas.chat/check?user_id=%d", id))
+	resp, err := http.Get(fmt.Sprintf("%s?user_id=%d", casBaseURL, id))
 	if err != nil {
-		log.Printf("[cas] unable check user status on CAS banned, status: %d", resp.StatusCode)
+		log.Printf("[cas] unable check user status on CAS banned, error: %v", err)
 		return false
 	}
 
