@@ -8,7 +8,7 @@ COPY . .
 RUN go build -v -o /run-app .
 
 
-FROM debian:bookworm
+FROM debian:trixie-20260316
 
 RUN apt-get update && \
     apt-get install -y ca-certificates && \
